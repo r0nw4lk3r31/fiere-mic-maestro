@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,83 +35,39 @@ const AdminDashboard = () => {
   const [editForm, setEditForm] = useState<Partial<Artist>>({});
 
   useEffect(() => {
+    const checkAuth = () => {
+      const isLoggedIn = localStorage.getItem("adminLoggedIn");
+      if (!isLoggedIn) {
+        navigate("/admin/login");
+      }
+    };
+
     checkAuth();
     fetchArtists();
+  }, [navigate]);
 
-    const channel = supabase
-      .channel("artists-admin-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "artists",
-        },
-        () => {
-          fetchArtists();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      navigate("/admin/login");
-      return;
+  const fetchArtists = () => {
+    const stored = localStorage.getItem("artists");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setArtists(parsed.sort((a: Artist, b: Artist) => 
+        (a.performance_order || 0) - (b.performance_order || 0)
+      ));
     }
-
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .single();
-
-    if (!roleData) {
-      toast.error("You don't have admin access");
-      navigate("/");
-    }
+    setLoading(false);
   };
 
-  const fetchArtists = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("artists")
-        .select("*")
-        .order("performance_order", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setArtists(data || []);
-    } catch (error) {
-      console.error("Error fetching artists:", error);
-      toast.error("Failed to load artists");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem("adminLoggedIn");
     navigate("/");
     toast.success("Logged out");
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase.from("artists").delete().eq("id", id);
-      if (error) throw error;
-      toast.success("Artist removed");
-    } catch (error) {
-      console.error("Error deleting artist:", error);
-      toast.error("Failed to remove artist");
-    }
+  const handleDelete = (id: string) => {
+    const updated = artists.filter(a => a.id !== id);
+    setArtists(updated);
+    localStorage.setItem("artists", JSON.stringify(updated));
+    toast.success("Artist removed");
   };
 
   const handleEdit = (artist: Artist) => {
@@ -120,27 +75,17 @@ const AdminDashboard = () => {
     setEditForm(artist);
   };
 
-  const handleSave = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("artists")
-        .update({
-          name: editForm.name,
-          song_description: editForm.song_description,
-          preferred_time: editForm.preferred_time,
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-      setEditingId(null);
-      toast.success("Updated");
-    } catch (error) {
-      console.error("Error updating artist:", error);
-      toast.error("Failed to update");
-    }
+  const handleSave = (id: string) => {
+    const updated = artists.map(a => 
+      a.id === id ? { ...a, ...editForm } : a
+    );
+    setArtists(updated);
+    localStorage.setItem("artists", JSON.stringify(updated));
+    setEditingId(null);
+    toast.success("Updated");
   };
 
-  const moveArtist = async (id: string, direction: "up" | "down") => {
+  const moveArtist = (id: string, direction: "up" | "down") => {
     const currentIndex = artists.findIndex((a) => a.id === id);
     if (
       (direction === "up" && currentIndex === 0) ||
@@ -156,25 +101,15 @@ const AdminDashboard = () => {
       newOrder[currentIndex],
     ];
 
-    // Update performance_order for all artists
-    try {
-      const updates = newOrder.map((artist, index) => ({
-        id: artist.id,
-        performance_order: index,
-      }));
+    // Update performance_order
+    const updated = newOrder.map((artist, index) => ({
+      ...artist,
+      performance_order: index,
+    }));
 
-      for (const update of updates) {
-        await supabase
-          .from("artists")
-          .update({ performance_order: update.performance_order })
-          .eq("id", update.id);
-      }
-
-      toast.success("Order updated");
-    } catch (error) {
-      console.error("Error reordering:", error);
-      toast.error("Failed to reorder");
-    }
+    setArtists(updated);
+    localStorage.setItem("artists", JSON.stringify(updated));
+    toast.success("Order updated");
   };
 
   if (loading) {

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Shield } from "lucide-react";
 
@@ -13,40 +12,20 @@ const AdminLogin = () => {
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // Check if user has admin role
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id)
-        .eq("role", "admin")
-        .single();
-
-      if (!roleData) {
-        await supabase.auth.signOut();
-        toast.error("You don't have admin access");
-        return;
-      }
-
+    // Simple hardcoded admin credentials for demo
+    if (email === "admin@fieremargriet.com" && password === "admin123") {
+      localStorage.setItem("adminLoggedIn", "true");
       toast.success("Welcome back!");
       navigate("/admin");
-    } catch (error: any) {
-      console.error("Error logging in:", error);
-      toast.error(error.message || "Failed to login");
-    } finally {
-      setIsLoggingIn(false);
+    } else {
+      toast.error("Invalid credentials");
     }
+
+    setIsLoggingIn(false);
   };
 
   return (

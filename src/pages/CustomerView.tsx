@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Music, Clock } from "lucide-react";
 
 interface Artist {
@@ -18,43 +17,17 @@ const CustomerView = () => {
 
   useEffect(() => {
     fetchArtists();
-
-    // Subscribe to realtime changes
-    const channel = supabase
-      .channel("artists-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "artists",
-        },
-        () => {
-          fetchArtists();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
-  const fetchArtists = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("artists")
-        .select("*")
-        .order("performance_order", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setArtists(data || []);
-    } catch (error) {
-      console.error("Error fetching artists:", error);
-    } finally {
-      setLoading(false);
+  const fetchArtists = () => {
+    const stored = localStorage.getItem("artists");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setArtists(parsed.sort((a: Artist, b: Artist) => 
+        (a.performance_order || 0) - (b.performance_order || 0)
+      ));
     }
+    setLoading(false);
   };
 
   return (

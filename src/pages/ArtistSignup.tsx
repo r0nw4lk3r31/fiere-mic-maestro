@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Music } from "lucide-react";
 
@@ -15,7 +14,7 @@ const ArtistSignup = () => {
   const [preferredTime, setPreferredTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name.trim()) {
@@ -25,23 +24,24 @@ const ArtistSignup = () => {
 
     setIsSubmitting(true);
 
-    try {
-      const { error } = await supabase.from("artists").insert({
-        name: name.trim(),
-        song_description: songDescription.trim() || null,
-        preferred_time: preferredTime.trim() || null,
-      });
+    // Save to localStorage
+    const existing = JSON.parse(localStorage.getItem("artists") || "[]");
+    const newArtist = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      song_description: songDescription.trim() || null,
+      preferred_time: preferredTime.trim() || null,
+      performance_order: existing.length,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...existing, newArtist];
+    localStorage.setItem("artists", JSON.stringify(updated));
 
-      if (error) throw error;
+    toast.success("You're on the list! See you tonight!");
+    navigate("/customer-view");
 
-      toast.success("You're on the list! See you tonight!");
-      navigate("/customer-view");
-    } catch (error) {
-      console.error("Error signing up:", error);
-      toast.error("Failed to sign up. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    setIsSubmitting(false);
   };
 
   return (
