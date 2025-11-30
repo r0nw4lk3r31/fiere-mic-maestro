@@ -63,6 +63,89 @@ export class OpenMicDataService {
   async initialize(): Promise<void> {
     // Ensure storage is initialized
     await this.storage.initialize();
+    
+    // Seed sample data if no artists exist (for demo purposes)
+    await this.seedSampleData();
+  }
+
+  /**
+   * Seed sample data for demonstration
+   */
+  private async seedSampleData(): Promise<void> {
+    const existingArtists = await this.getArtists();
+    if (existingArtists.length > 0) return; // Don't seed if data already exists
+
+    console.log('🌱 Seeding sample data for demonstration...');
+
+    // Sample artists
+    const sampleArtists = [
+      {
+        id: '1',
+        name: 'Sarah Johnson',
+        song_description: 'Original folk song about city lights',
+        preferred_time: '8:00 PM',
+        performance_order: 0,
+        status: 'confirmed',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: '2', 
+        name: 'Mike Chen',
+        song_description: 'Acoustic cover of indie rock hits',
+        preferred_time: '8:15 PM',
+        performance_order: 1,
+        status: 'confirmed',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: '3',
+        name: 'Elena Rodriguez',
+        song_description: 'Jazz standards with modern twist',
+        preferred_time: '8:30 PM', 
+        performance_order: 2,
+        status: 'confirmed',
+        created_at: new Date().toISOString()
+      }
+    ];
+
+    // Sample album
+    const sampleAlbum = {
+      id: 'album-1',
+      name: 'Open Mic Night - November 2025',
+      date: '2025-11-30',
+      description: 'Memorable performances from our monthly open mic night',
+      created_at: new Date().toISOString(),
+      photos: []
+    };
+
+    // Sample photos (small base64 encoded images for demo)
+    const samplePhotos = [
+      {
+        id: 'photo-1',
+        filename: 'performance-1.jpg',
+        data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z',
+        caption: 'Sarah performing her original folk song',
+        uploaded_at: new Date().toISOString(),
+        album_id: 'album-1',
+        order: 0
+      },
+      {
+        id: 'photo-2',
+        filename: 'performance-2.jpg', 
+        data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z',
+        caption: 'Mike rocking the acoustic set',
+        uploaded_at: new Date().toISOString(),
+        album_id: 'album-1',
+        order: 1
+      }
+    ];
+
+    // Save sample data
+    await this.storage.set(this.artistsKey, sampleArtists, 'cold');
+    await this.storage.set(this.albumsKey, [sampleAlbum], 'cold');
+    await this.storage.set(this.photosKey, samplePhotos, 'archive');
+
+    console.log('✅ Sample data seeded successfully!');
   }
 
   // Artist Management
