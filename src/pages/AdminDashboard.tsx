@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { LogOut, Trash2, ChevronUp, ChevronDown, Save } from "lucide-react";
+import { LogOut, Trash2, ChevronUp, ChevronDown, Save, Camera } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,14 +163,24 @@ const AdminDashboard = () => {
               Manage tonight's lineup
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="border-border text-foreground hover:bg-card"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/admin/photos")}
+              className="border-border text-foreground hover:bg-card"
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Manage Photos
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="border-border text-foreground hover:bg-card"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         {artists.length === 0 ? (

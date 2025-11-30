@@ -15,10 +15,43 @@ export interface Artist {
   created_at: string;
 }
 
+export interface Album {
+  id: string;
+  name: string;
+  date: string; // ISO date string
+  description: string | null;
+  created_at: string;
+  photos: Photo[];
+}
+
+export interface Photo {
+  id: string;
+  filename: string;
+  data: string; // base64 encoded image
+  caption: string | null;
+  uploaded_at: string;
+  album_id: string;
+  order: number;
+}
+
+export interface PendingPhoto {
+  id: string;
+  filename: string;
+  data: string; // base64 encoded image
+  caption: string | null;
+  uploaded_at: string;
+  uploader_name: string | null;
+  uploader_email: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
 export class OpenMicDataService {
   private storage: PlatformStorageService;
   private readonly artistsKey = 'artists';
   private readonly adminAuthKey = 'admin_authenticated';
+  private readonly albumsKey = 'albums';
+  private readonly photosKey = 'photos';
+  private readonly pendingPhotosKey = 'pending_photos';
 
   constructor(storage: PlatformStorageService) {
     this.storage = storage;
@@ -108,6 +141,262 @@ export class OpenMicDataService {
     await this.storage.set(this.artistsKey, reorderedArtists, 'cold');
   }
 
+  // Album Management
+
+  /**
+   * Get all albums
+   */
+  async getAlbums(): Promise<Album[]> {
+    const albums = await this.storage.get(this.albumsKey, 'cold');
+    if (!albums) return [];
+
+    // Sort by date (newest first)
+    return albums.sort((a: Album, b: Album) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }
+
+  /**
+   * Get a specific album with photos
+   */
+  async getAlbum(id: string): Promise<Album | null> {
+    const albums = await this.getAlbums();
+    const album = albums.find(a => a.id === id);
+    if (!album) return null;
+
+    // Load photos for this album
+    const allPhotos = await this.getPhotos();
+    album.photos = allPhotos.filter(p => p.album_id === id)
+      .sort((a, b) => a.order - b.order);
+
+    return album;
+  }
+
+  /**
+   * Create a new album
+   */
+  async createAlbum(albumData: Omit<Album, 'id' | 'created_at' | 'photos'>): Promise<Album> {
+    const existingAlbums = await this.getAlbums();
+
+    const newAlbum: Album = {
+      ...albumData,
+      id: Date.now().toString(),
+      created_at: new Date().toISOString(),
+      photos: []
+    };
+
+    const updatedAlbums = [...existingAlbums, newAlbum];
+    await this.storage.set(this.albumsKey, updatedAlbums, 'cold');
+
+    return newAlbum;
+  }
+
+  /**
+   * Update an album
+   */
+  async updateAlbum(id: string, updates: Partial<Omit<Album, 'id' | 'created_at' | 'photos'>>): Promise<void> {
+    const albums = await this.getAlbums();
+    const updatedAlbums = albums.map(album =>
+      album.id === id ? { ...album, ...updates } : album
+    );
+
+    await this.storage.set(this.albumsKey, updatedAlbums, 'cold');
+  }
+
+  /**
+   * Delete an album and all its photos
+   */
+  async deleteAlbum(id: string): Promise<void> {
+    // Delete all photos in the album
+    const photos = await this.getPhotos();
+    const photosToDelete = photos.filter(p => p.album_id === id);
+    for (const photo of photosToDelete) {
+      await this.deletePhoto(photo.id);
+    }
+
+    // Delete the album
+    const albums = await this.getAlbums();
+    const filteredAlbums = albums.filter(album => album.id !== id);
+    await this.storage.set(this.albumsKey, filteredAlbums, 'cold');
+  }
+
+  // Photo Management
+
+  /**
+   * Get all photos
+   */
+  async getPhotos(): Promise<Photo[]> {
+    const photos = await this.storage.get(this.photosKey, 'archive'); // Use archive for larger data
+    if (!photos) return [];
+
+    return photos.sort((a: Photo, b: Photo) => a.order - b.order);
+  }
+
+  /**
+   * Upload a new photo
+   */
+  async uploadPhoto(photoData: Omit<Photo, 'id' | 'uploaded_at' | 'order'>): Promise<Photo> {
+    const existingPhotos = await this.getPhotos();
+    const albumPhotos = existingPhotos.filter(p => p.album_id === photoData.album_id);
+
+    const newPhoto: Photo = {
+      ...photoData,
+      id: Date.now().toString(),
+      uploaded_at: new Date().toISOString(),
+      order: albumPhotos.length
+    };
+
+    const updatedPhotos = [...existingPhotos, newPhoto];
+    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
+
+    return newPhoto;
+  }
+
+  /**
+   * Update a photo
+   */
+  async updatePhoto(id: string, updates: Partial<Omit<Photo, 'id' | 'uploaded_at'>>): Promise<void> {
+    const photos = await this.getPhotos();
+    const updatedPhotos = photos.map(photo =>
+      photo.id === id ? { ...photo, ...updates } : photo
+    );
+
+    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
+  }
+
+  /**
+   * Delete a photo
+   */
+  async deletePhoto(id: string): Promise<void> {
+    const photos = await this.getPhotos();
+    const filteredPhotos = photos.filter(photo => photo.id !== id);
+
+    // Reorder remaining photos in the same album
+    const photoToDelete = photos.find(p => p.id === id);
+    if (photoToDelete) {
+      const albumPhotos = filteredPhotos.filter(p => p.album_id === photoToDelete.album_id);
+      const reorderedPhotos = albumPhotos.map((photo, index) => ({
+        ...photo,
+        order: index
+      }));
+
+      // Update the filtered photos with reordered ones
+      const otherPhotos = filteredPhotos.filter(p => p.album_id !== photoToDelete.album_id);
+      const finalPhotos = [...otherPhotos, ...reorderedPhotos];
+
+      await this.storage.set(this.photosKey, finalPhotos, 'archive');
+    } else {
+      await this.storage.set(this.photosKey, filteredPhotos, 'archive');
+    }
+  }
+
+  /**
+   * Reorder photos in an album
+   */
+  async reorderPhotos(albumId: string, photoIds: string[]): Promise<void> {
+    const photos = await this.getPhotos();
+    const updatedPhotos = photos.map(photo => {
+      if (photo.album_id === albumId) {
+        const newOrder = photoIds.indexOf(photo.id);
+        if (newOrder !== -1) {
+          return { ...photo, order: newOrder };
+        }
+      }
+      return photo;
+    });
+
+    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
+  }
+
+  // Pending Photo Management
+
+  /**
+   * Get all pending photos
+   */
+  async getPendingPhotos(): Promise<PendingPhoto[]> {
+    const pendingPhotos = await this.storage.get(this.pendingPhotosKey, 'archive');
+    if (!pendingPhotos) return [];
+
+    return pendingPhotos.sort((a: PendingPhoto, b: PendingPhoto) =>
+      new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+    );
+  }
+
+  /**
+   * Submit a pending photo for review
+   */
+  async submitPendingPhoto(photoData: Omit<PendingPhoto, 'id' | 'uploaded_at' | 'status'>): Promise<PendingPhoto> {
+    const existingPendingPhotos = await this.getPendingPhotos();
+
+    const newPendingPhoto: PendingPhoto = {
+      ...photoData,
+      id: Date.now().toString(),
+      uploaded_at: new Date().toISOString(),
+      status: 'pending'
+    };
+
+    const updatedPendingPhotos = [...existingPendingPhotos, newPendingPhoto];
+    await this.storage.set(this.pendingPhotosKey, updatedPendingPhotos, 'archive');
+
+    return newPendingPhoto;
+  }
+
+  /**
+   * Approve a pending photo and add it to an album
+   */
+  async approvePendingPhoto(pendingPhotoId: string, albumId: string, caption?: string): Promise<Photo> {
+    const pendingPhotos = await this.getPendingPhotos();
+    const pendingPhoto = pendingPhotos.find(p => p.id === pendingPhotoId);
+
+    if (!pendingPhoto) {
+      throw new Error('Pending photo not found');
+    }
+
+    // Create the approved photo
+    const photoData = {
+      filename: pendingPhoto.filename,
+      data: pendingPhoto.data,
+      caption: caption || pendingPhoto.caption,
+      album_id: albumId
+    };
+
+    const approvedPhoto = await this.uploadPhoto(photoData);
+
+    // Update pending photo status
+    await this.updatePendingPhoto(pendingPhotoId, { status: 'approved' });
+
+    return approvedPhoto;
+  }
+
+  /**
+   * Reject a pending photo
+   */
+  async rejectPendingPhoto(pendingPhotoId: string): Promise<void> {
+    await this.updatePendingPhoto(pendingPhotoId, { status: 'rejected' });
+  }
+
+  /**
+   * Update a pending photo
+   */
+  async updatePendingPhoto(id: string, updates: Partial<Omit<PendingPhoto, 'id' | 'uploaded_at'>>): Promise<void> {
+    const pendingPhotos = await this.getPendingPhotos();
+    const updatedPendingPhotos = pendingPhotos.map(pendingPhoto =>
+      pendingPhoto.id === id ? { ...pendingPhoto, ...updates } : pendingPhoto
+    );
+
+    await this.storage.set(this.pendingPhotosKey, updatedPendingPhotos, 'archive');
+  }
+
+  /**
+   * Delete a pending photo
+   */
+  async deletePendingPhoto(id: string): Promise<void> {
+    const pendingPhotos = await this.getPendingPhotos();
+    const filteredPendingPhotos = pendingPhotos.filter(pendingPhoto => pendingPhoto.id !== id);
+
+    await this.storage.set(this.pendingPhotosKey, filteredPendingPhotos, 'archive');
+  }
+
   // Admin Authentication
 
   /**
@@ -164,12 +453,18 @@ export class OpenMicDataService {
   /**
    * Export all data
    */
-  async exportData(): Promise<{ artists: Artist[]; adminAuthenticated: boolean }> {
+  async exportData(): Promise<{ artists: Artist[]; albums: Album[]; photos: Photo[]; pendingPhotos: PendingPhoto[]; adminAuthenticated: boolean }> {
     const artists = await this.getArtists();
+    const albums = await this.getAlbums();
+    const photos = await this.getPhotos();
+    const pendingPhotos = await this.getPendingPhotos();
     const adminAuthenticated = await this.isAdminAuthenticated();
 
     return {
       artists,
+      albums,
+      photos,
+      pendingPhotos,
       adminAuthenticated
     };
   }
@@ -177,8 +472,20 @@ export class OpenMicDataService {
   /**
    * Import data
    */
-  async importData(data: { artists: Artist[]; adminAuthenticated?: boolean }): Promise<void> {
+  async importData(data: { artists: Artist[]; albums?: Album[]; photos?: Photo[]; pendingPhotos?: PendingPhoto[]; adminAuthenticated?: boolean }): Promise<void> {
     await this.storage.set(this.artistsKey, data.artists, 'cold');
+
+    if (data.albums) {
+      await this.storage.set(this.albumsKey, data.albums, 'cold');
+    }
+
+    if (data.photos) {
+      await this.storage.set(this.photosKey, data.photos, 'archive');
+    }
+
+    if (data.pendingPhotos) {
+      await this.storage.set(this.pendingPhotosKey, data.pendingPhotos, 'archive');
+    }
 
     if (data.adminAuthenticated) {
       await this.storage.set(this.adminAuthKey, true, 'hot');
