@@ -82,7 +82,16 @@ export class OpenMicDataService {
       photos: existingPhotos.length
     });
     
-    // Only seed if there's literally no data at all
+    // Check if we're accessing from a network IP (different from localhost)
+    const isNetworkAccess = window.location.hostname !== 'localhost';
+    
+    if (isNetworkAccess) {
+      console.log('🌐 Network access detected - skipping mock data seeding to preserve existing data');
+      console.log('💡 If you see mock data, try accessing via localhost first to set up real data');
+      return;
+    }
+    
+    // Only seed if there's literally no data at all AND we're on localhost
     if (existingArtists.length === 0 && existingAlbums.length === 0 && existingPhotos.length === 0) {
       console.log('🌱 Seeding sample data for demonstration...');
 

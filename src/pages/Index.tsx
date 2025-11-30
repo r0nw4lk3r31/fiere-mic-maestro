@@ -6,12 +6,8 @@ import { QRCodeSVG } from "qrcode.react";
 const Index = () => {
   const navigate = useNavigate();
   
-  // Use network IP for QR codes so mobile devices can connect
+  // Use current origin for QR codes to maintain data consistency
   const getBaseUrl = () => {
-    if (window.location.hostname === 'localhost') {
-      // Use the network IP address for mobile device access
-      return `http://192.168.129.32:${window.location.port}`;
-    }
     return window.location.origin;
   };
   
@@ -84,6 +80,17 @@ const Index = () => {
                 level="H"
                 includeMargin={true}
               />
+            </div>
+            <div className="space-y-2 mb-4">
+              <p className="text-xs text-muted-foreground">
+                For mobile access, use:
+              </p>
+              <p className="text-xs font-mono bg-muted p-2 rounded text-muted-foreground">
+                http://192.168.129.32:8080/customer-view
+              </p>
+              <p className="text-xs font-mono bg-muted p-2 rounded text-muted-foreground">
+                http://172.19.176.1:8080/customer-view
+              </p>
             </div>
             <Button
               onClick={() => navigate("/customer-view")}

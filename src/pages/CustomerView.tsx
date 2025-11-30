@@ -47,6 +47,7 @@ const CustomerView = () => {
 
     try {
       const fetchedArtists = await activeService.getArtists();
+      console.log('🎤 Loaded artists:', fetchedArtists.length, fetchedArtists.map(a => `${a.name} - ${a.song_description}`));
       setArtists(fetchedArtists.sort((a: Artist, b: Artist) => 
         (a.performance_order || 0) - (b.performance_order || 0)
       ));
@@ -63,6 +64,7 @@ const CustomerView = () => {
 
     try {
       const fetchedAlbums = await activeService.getAlbums();
+      console.log('📸 Loaded albums:', fetchedAlbums.length, fetchedAlbums.map(a => `${a.name} (${a.photos?.length || 0} photos)`));
       // Load photos for each album
       const albumsWithPhotos = await Promise.all(
         fetchedAlbums.map(async (album) => {
