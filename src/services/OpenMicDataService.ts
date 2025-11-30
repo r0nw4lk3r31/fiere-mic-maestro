@@ -63,116 +63,6 @@ export class OpenMicDataService {
   async initialize(): Promise<void> {
     // Ensure storage is initialized
     await this.storage.initialize();
-    
-    // Seed sample data if no artists exist (for demo purposes)
-    await this.seedSampleData();
-  }
-
-  /**
-   * Seed sample data for demonstration
-   */
-  private async seedSampleData(): Promise<void> {
-    const existingArtists = await this.getArtists();
-    const existingAlbums = await this.getAlbums();
-    const existingPhotos = await this.getPhotos();
-    
-    console.log('📊 Current data status:', {
-      artists: existingArtists.length,
-      albums: existingAlbums.length, 
-      photos: existingPhotos.length
-    });
-    
-    // Check if we're accessing from a network IP (different from localhost)
-    const isNetworkAccess = window.location.hostname !== 'localhost';
-    
-    if (isNetworkAccess) {
-      console.log('🌐 Network access detected - skipping mock data seeding to preserve existing data');
-      console.log('💡 If you see mock data, try accessing via localhost first to set up real data');
-      return;
-    }
-    
-    // Only seed if there's literally no data at all AND we're on localhost
-    if (existingArtists.length === 0 && existingAlbums.length === 0 && existingPhotos.length === 0) {
-      console.log('🌱 Seeding sample data for demonstration...');
-
-      // Sample artists
-      const sampleArtists = [
-        {
-          id: '1',
-          name: 'Sarah Johnson',
-          song_description: 'Original folk song about city lights',
-          preferred_time: '8:00 PM',
-          performance_order: 0,
-          status: 'confirmed',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '2', 
-          name: 'Mike Chen',
-          song_description: 'Acoustic cover of indie rock hits',
-          preferred_time: '8:15 PM',
-          performance_order: 1,
-          status: 'confirmed',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '3',
-          name: 'Elena Rodriguez',
-          song_description: 'Jazz standards with modern twist',
-          preferred_time: '8:30 PM', 
-          performance_order: 2,
-          status: 'confirmed',
-          created_at: new Date().toISOString()
-        }
-      ];
-
-      // Sample album
-      const sampleAlbum = {
-        id: 'album-1',
-        name: 'Open Mic Night - November 2025',
-        date: '2025-11-30',
-        description: 'Memorable performances from our monthly open mic night',
-        created_at: new Date().toISOString(),
-        photos: []
-      };
-
-      // Sample photos (small base64 encoded images for demo)
-      const samplePhotos = [
-        {
-          id: 'photo-1',
-          filename: 'performance-1.jpg',
-          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z',
-          caption: 'Sarah performing her original folk song',
-          uploaded_at: new Date().toISOString(),
-          album_id: 'album-1',
-          order: 0
-        },
-        {
-          id: 'photo-2',
-          filename: 'performance-2.jpg', 
-          data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z',
-          caption: 'Mike rocking the acoustic set',
-          uploaded_at: new Date().toISOString(),
-          album_id: 'album-1',
-          order: 1
-        }
-      ];
-
-      // Save sample data
-      await this.storage.set(this.artistsKey, sampleArtists, 'cold');
-      await this.storage.set(this.albumsKey, [sampleAlbum], 'cold');
-      await this.storage.set(this.photosKey, samplePhotos, 'archive');
-
-      console.log('✅ Sample data seeded successfully!');
-    } else {
-      console.log('📋 Using existing data - no seeding needed');
-      if (existingArtists.length > 0) {
-        console.log('👥 Existing artists:', existingArtists.map(a => `${a.name} (${a.song_description})`));
-      }
-      if (existingAlbums.length > 0) {
-        console.log('📸 Existing albums:', existingAlbums.map(a => `${a.name} (${a.photos?.length || 0} photos)`));
-      }
-    }
   }
 
   // Artist Management
@@ -181,7 +71,7 @@ export class OpenMicDataService {
    * Get all artists
    */
   async getArtists(): Promise<Artist[]> {
-    const artists = await this.storage.get(this.artistsKey, 'cold');
+    const artists = await this.storage.get(this.artistsKey, 'archive');
     if (!artists) return [];
 
     // Sort by performance order
@@ -204,7 +94,7 @@ export class OpenMicDataService {
     };
 
     const updatedArtists = [...existingArtists, newArtist];
-    await this.storage.set(this.artistsKey, updatedArtists, 'cold');
+    await this.storage.set(this.artistsKey, updatedArtists, 'archive');
 
     return newArtist;
   }
@@ -218,7 +108,7 @@ export class OpenMicDataService {
       artist.id === id ? { ...artist, ...updates } : artist
     );
 
-    await this.storage.set(this.artistsKey, updatedArtists, 'cold');
+    await this.storage.set(this.artistsKey, updatedArtists, 'archive');
   }
 
   /**
@@ -234,7 +124,7 @@ export class OpenMicDataService {
       performance_order: index
     }));
 
-    await this.storage.set(this.artistsKey, reorderedArtists, 'cold');
+    await this.storage.set(this.artistsKey, reorderedArtists, 'archive');
   }
 
   /**
@@ -248,7 +138,7 @@ export class OpenMicDataService {
       return { ...artist, performance_order: index };
     });
 
-    await this.storage.set(this.artistsKey, reorderedArtists, 'cold');
+    await this.storage.set(this.artistsKey, reorderedArtists, 'archive');
   }
 
   // Album Management
@@ -257,7 +147,7 @@ export class OpenMicDataService {
    * Get all albums
    */
   async getAlbums(): Promise<Album[]> {
-    const albums = await this.storage.get(this.albumsKey, 'cold');
+    const albums = await this.storage.get(this.albumsKey, 'archive');
     if (!albums) return [];
 
     // Sort by date (newest first)
@@ -296,7 +186,7 @@ export class OpenMicDataService {
     };
 
     const updatedAlbums = [...existingAlbums, newAlbum];
-    await this.storage.set(this.albumsKey, updatedAlbums, 'cold');
+    await this.storage.set(this.albumsKey, updatedAlbums, 'archive');
 
     return newAlbum;
   }
@@ -310,7 +200,7 @@ export class OpenMicDataService {
       album.id === id ? { ...album, ...updates } : album
     );
 
-    await this.storage.set(this.albumsKey, updatedAlbums, 'cold');
+    await this.storage.set(this.albumsKey, updatedAlbums, 'archive');
   }
 
   /**
@@ -327,7 +217,7 @@ export class OpenMicDataService {
     // Delete the album
     const albums = await this.getAlbums();
     const filteredAlbums = albums.filter(album => album.id !== id);
-    await this.storage.set(this.albumsKey, filteredAlbums, 'cold');
+    await this.storage.set(this.albumsKey, filteredAlbums, 'archive');
   }
 
   // Photo Management
@@ -539,23 +429,45 @@ export class OpenMicDataService {
   // Utility methods
 
   /**
-   * Clear all data
+   * Migrate data from cold tier to archive tier (one-time migration)
    */
-  async clearAllData(): Promise<void> {
-    await this.storage.clearTier('cold');
-    await this.storage.clearTier('hot');
+  async migrateDataFromColdToArchive(): Promise<void> {
+    console.log('🔄 Starting data migration from cold to archive tier...');
+
+    try {
+      // Migrate artists
+      const artistsData = await this.storage.get(this.artistsKey, 'cold');
+      if (artistsData) {
+        await this.storage.set(this.artistsKey, artistsData, 'archive');
+        await this.storage.delete(this.artistsKey, 'cold');
+        console.log('✅ Migrated artists data');
+      }
+
+      // Migrate albums
+      const albumsData = await this.storage.get(this.albumsKey, 'cold');
+      if (albumsData) {
+        await this.storage.set(this.albumsKey, albumsData, 'archive');
+        await this.storage.delete(this.albumsKey, 'cold');
+        console.log('✅ Migrated albums data');
+      }
+
+      console.log('🎉 Data migration completed successfully!');
+    } catch (error) {
+      console.error('❌ Data migration failed:', error);
+      throw error;
+    }
   }
 
   /**
    * Get storage statistics
    */
   async getStorageStats() {
-    const coldStats = await this.storage.getStats('cold');
     const hotStats = await this.storage.getStats('hot');
+    const archiveStats = await this.storage.getStats('archive');
 
     return {
-      cold: coldStats,
       hot: hotStats,
+      archive: archiveStats,
       cache: this.storage.getCacheStats()
     };
   }
@@ -583,10 +495,10 @@ export class OpenMicDataService {
    * Import data
    */
   async importData(data: { artists: Artist[]; albums?: Album[]; photos?: Photo[]; pendingPhotos?: PendingPhoto[]; adminAuthenticated?: boolean }): Promise<void> {
-    await this.storage.set(this.artistsKey, data.artists, 'cold');
+    await this.storage.set(this.artistsKey, data.artists, 'archive');
 
     if (data.albums) {
-      await this.storage.set(this.albumsKey, data.albums, 'cold');
+      await this.storage.set(this.albumsKey, data.albums, 'archive');
     }
 
     if (data.photos) {
@@ -620,6 +532,13 @@ export async function initializeGlobalDataService(): Promise<OpenMicDataService>
 
   globalDataService = new OpenMicDataService(storageService);
   await globalDataService.initialize();
+
+  // Migrate data from cold to archive tier (one-time migration)
+  try {
+    await globalDataService.migrateDataFromColdToArchive();
+  } catch (error) {
+    console.warn('Data migration warning (this is normal if no old data exists):', error);
+  }
 
   return globalDataService;
 }
