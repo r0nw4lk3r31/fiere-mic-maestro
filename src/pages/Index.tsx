@@ -5,7 +5,17 @@ import { QRCodeSVG } from "qrcode.react";
 
 const Index = () => {
   const navigate = useNavigate();
-  const baseUrl = window.location.origin;
+  
+  // Use network IP for QR codes so mobile devices can connect
+  const getBaseUrl = () => {
+    if (window.location.hostname === 'localhost') {
+      // Use the network IP address for mobile device access
+      return `http://192.168.129.32:${window.location.port}`;
+    }
+    return window.location.origin;
+  };
+  
+  const baseUrl = getBaseUrl();
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
