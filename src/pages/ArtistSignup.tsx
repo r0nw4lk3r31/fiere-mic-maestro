@@ -77,6 +77,12 @@ const ArtistSignup = () => {
           </p>
         </div>
 
+        <div className="bg-card rounded-xl p-4 border border-border shadow-lg mb-6">
+          <p className="text-center text-primary font-semibold text-lg">
+            🎸 Play three songs en dan kan je een gratis pintje pakken! 🎸
+          </p>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-card rounded-xl p-6 border border-border shadow-lg">
             <div className="space-y-4">
