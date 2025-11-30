@@ -114,11 +114,19 @@ const AdminLogin = () => {
           </Button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/admin/signup")}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Don't have an account? Sign up
+          </Button>
+          
           <Button
             variant="ghost"
             onClick={() => navigate("/")}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground block w-full"
           >
             Back to Home
           </Button>
