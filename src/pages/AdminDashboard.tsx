@@ -16,16 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-interface Artist {
-  id: string;
-  name: string;
-  song_description: string | null;
-  preferred_time: string | null;
-  performance_order: number | null;
-  status: string;
-  created_at: string;
-}
+import { Artist, OpenMicDataService, initializeGlobalDataService } from "@/services/OpenMicDataService";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -33,41 +24,60 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Artist>>({});
+  const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const isLoggedIn = localStorage.getItem("adminLoggedIn");
-      if (!isLoggedIn) {
-        navigate("/admin/login");
-      }
+    const initService = async () => {
+      const service = await initializeGlobalDataService();
+      setDataService(service);
+
+      await checkAuth(service);
+      await fetchArtists(service);
     };
 
-    checkAuth();
-    fetchArtists();
+    initService();
   }, [navigate]);
 
-  const fetchArtists = () => {
-    const stored = localStorage.getItem("artists");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setArtists(parsed.sort((a: Artist, b: Artist) => 
-        (a.performance_order || 0) - (b.performance_order || 0)
-      ));
+  const checkAuth = async (service?: OpenMicDataService) => {
+    const activeService = service || dataService;
+    if (!activeService) return;
+    const isLoggedIn = await activeService.isAdminAuthenticated();
+    if (!isLoggedIn) {
+      navigate("/admin/login");
     }
-    setLoading(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminLoggedIn");
+  const fetchArtists = async (service?: OpenMicDataService) => {
+    const activeService = service || dataService;
+    if (!activeService) return;
+    try {
+      const data = await activeService.getArtists();
+      setArtists(data);
+    } catch (error) {
+      console.error("Error fetching artists:", error);
+      toast.error("Failed to load artists");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!dataService) return;
+    await dataService.logoutAdmin();
     navigate("/");
     toast.success("Logged out");
   };
 
-  const handleDelete = (id: string) => {
-    const updated = artists.filter(a => a.id !== id);
-    setArtists(updated);
-    localStorage.setItem("artists", JSON.stringify(updated));
-    toast.success("Artist removed");
+  const handleDelete = async (id: string) => {
+    if (!dataService) return;
+    try {
+      await dataService.deleteArtist(id);
+      await fetchArtists(); // Refresh the list
+      toast.success("Artist removed");
+    } catch (error) {
+      console.error("Error deleting artist:", error);
+      toast.error("Failed to remove artist");
+    }
   };
 
   const handleEdit = (artist: Artist) => {
@@ -75,17 +85,22 @@ const AdminDashboard = () => {
     setEditForm(artist);
   };
 
-  const handleSave = (id: string) => {
-    const updated = artists.map(a => 
-      a.id === id ? { ...a, ...editForm } : a
-    );
-    setArtists(updated);
-    localStorage.setItem("artists", JSON.stringify(updated));
-    setEditingId(null);
-    toast.success("Updated");
+  const handleSave = async (id: string) => {
+    if (!dataService) return;
+    try {
+      const updatedArtist = { ...artists.find(a => a.id === id), ...editForm };
+      await dataService.updateArtist(id, updatedArtist);
+      await fetchArtists(); // Refresh the list
+      setEditingId(null);
+      toast.success("Updated");
+    } catch (error) {
+      console.error("Error updating artist:", error);
+      toast.error("Failed to update artist");
+    }
   };
 
-  const moveArtist = (id: string, direction: "up" | "down") => {
+  const moveArtist = async (id: string, direction: "up" | "down") => {
+    if (!dataService) return;
     const currentIndex = artists.findIndex((a) => a.id === id);
     if (
       (direction === "up" && currentIndex === 0) ||
@@ -107,9 +122,17 @@ const AdminDashboard = () => {
       performance_order: index,
     }));
 
-    setArtists(updated);
-    localStorage.setItem("artists", JSON.stringify(updated));
-    toast.success("Order updated");
+    try {
+      // Update all artists with new order
+      for (const artist of updated) {
+        await dataService.updateArtist(artist.id, artist);
+      }
+      await fetchArtists(); // Refresh the list
+      toast.success("Order updated");
+    } catch (error) {
+      console.error("Error updating artist order:", error);
+      toast.error("Failed to update order");
+    }
   };
 
   if (loading) {

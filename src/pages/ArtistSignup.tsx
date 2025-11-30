@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Music } from "lucide-react";
+import { OpenMicDataService, initializeGlobalDataService } from "@/services/OpenMicDataService";
 
 const ArtistSignup = () => {
   const navigate = useNavigate();
@@ -13,8 +14,17 @@ const ArtistSignup = () => {
   const [songDescription, setSongDescription] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const initService = async () => {
+      const service = await initializeGlobalDataService();
+      setDataService(service);
+    };
+    initService();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name.trim()) {
@@ -22,26 +32,28 @@ const ArtistSignup = () => {
       return;
     }
 
+    if (!dataService) {
+      toast.error("Service not ready, please try again");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Save to localStorage
-    const existing = JSON.parse(localStorage.getItem("artists") || "[]");
-    const newArtist = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      song_description: songDescription.trim() || null,
-      preferred_time: preferredTime.trim() || null,
-      performance_order: existing.length,
-      status: "pending",
-      created_at: new Date().toISOString(),
-    };
-    const updated = [...existing, newArtist];
-    localStorage.setItem("artists", JSON.stringify(updated));
+    try {
+      await dataService.addArtist({
+        name: name.trim(),
+        song_description: songDescription.trim() || null,
+        preferred_time: preferredTime.trim() || null,
+      });
 
-    toast.success("You're on the list! See you tonight!");
-    navigate("/customer-view");
-
-    setIsSubmitting(false);
+      toast.success("You're on the list! See you tonight!");
+      navigate("/customer-view");
+    } catch (error) {
+      console.error("Error signing up artist:", error);
+      toast.error("Failed to sign up, please try again");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

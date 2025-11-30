@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Music, Clock } from "lucide-react";
+import { OpenMicDataService, initializeGlobalDataService } from "@/services/OpenMicDataService";
 
 interface Artist {
   id: string;
@@ -14,20 +15,31 @@ interface Artist {
 const CustomerView = () => {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
 
   useEffect(() => {
-    fetchArtists();
+    const initService = async () => {
+      const service = await initializeGlobalDataService();
+      setDataService(service);
+      await fetchArtists(service);
+    };
+    initService();
   }, []);
 
-  const fetchArtists = () => {
-    const stored = localStorage.getItem("artists");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setArtists(parsed.sort((a: Artist, b: Artist) => 
+  const fetchArtists = async (service?: OpenMicDataService) => {
+    const activeService = service || dataService;
+    if (!activeService) return;
+
+    try {
+      const fetchedArtists = await activeService.getArtists();
+      setArtists(fetchedArtists.sort((a: Artist, b: Artist) => 
         (a.performance_order || 0) - (b.performance_order || 0)
       ));
+    } catch (error) {
+      console.error("Error fetching artists:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

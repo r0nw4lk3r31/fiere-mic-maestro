@@ -1,31 +1,47 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Shield } from "lucide-react";
+import { OpenMicDataService, initializeGlobalDataService } from "@/services/OpenMicDataService";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    const initService = async () => {
+      const service = await initializeGlobalDataService();
+      setDataService(service);
+    };
+    initService();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dataService) return;
+
     setIsLoggingIn(true);
 
-    // Simple hardcoded admin credentials for demo
-    if (email === "admin@fieremargriet.com" && password === "admin123") {
-      localStorage.setItem("adminLoggedIn", "true");
-      toast.success("Welcome back!");
-      navigate("/admin");
-    } else {
-      toast.error("Invalid credentials");
+    try {
+      const success = await dataService.authenticateAdmin(email, password);
+      if (success) {
+        toast.success("Welcome back!");
+        navigate("/admin");
+      } else {
+        toast.error("Invalid credentials");
+      }
+    } catch (error) {
+      console.error("Error logging in:", error);
+      toast.error("Failed to login");
+    } finally {
+      setIsLoggingIn(false);
     }
-
-    setIsLoggingIn(false);
   };
 
   return (
