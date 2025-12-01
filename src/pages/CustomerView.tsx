@@ -128,19 +128,18 @@ const CustomerView = () => {
       return;
     }
 
-    // Find the most recent active album to upload to
-    const activeAlbums = albums
-      .filter(album => album.is_active)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    if (activeAlbums.length === 0) {
-      toast.error("No active albums available for upload");
-      return;
-    }
-
     setUploading(true);
     try {
-      await dataService.uploadPhoto(activeAlbums[0].id, selectedFile, photoCaption.trim() || undefined);
+      // Get today's event album (automatically filters for event type + customer uploads allowed)
+      const eventAlbum = await dataService.getTodaysEventAlbum();
+      
+      if (!eventAlbum) {
+        toast.error("No event album available for uploads right now. Check back later!");
+        setUploading(false);
+        return;
+      }
+
+      await dataService.uploadPhoto(eventAlbum.id, selectedFile, photoCaption.trim() || undefined);
 
       toast.success("Photo uploaded successfully! It will be reviewed by admins before being published.");
 

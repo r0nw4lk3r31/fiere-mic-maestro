@@ -316,6 +316,19 @@ export class OpenMicDataService {
     });
   }
 
+  /**
+   * Get today's event album for customer uploads
+   */
+  async getTodaysEventAlbum(): Promise<Album | null> {
+    try {
+      const response = await this.apiRequest<ApiResponse<Album | null>>('/api/albums/today-event');
+      return response.data || null;
+    } catch (error) {
+      console.error('Error fetching today\'s event album:', error);
+      return null;
+    }
+  }
+
   // Photo Management
 
   /**

@@ -12,20 +12,24 @@
 ### ✅ 1. Fix Photo Display (BROKEN) ⏱️ 5 min
 **Problem:** Photos show filename with broken icon instead of actual images
 
-**Status:** ✅ COMPLETED
+**Status:** ✅ COMPLETED & TESTED
 
 **Tasks:**
 - [x] Add `VITE_API_URL` environment variable support
 - [x] Update `OpenMicDataService.ts` to use configurable API URL
 - [x] Fix image URLs: Prepend API URL in service layer
 - [x] Update all photo references (pending photos, album photos, customer view)
+- [x] Add CORS headers for cross-origin image loading
+- [x] Test on localhost (local development)
+- [x] Test on Vercel (production)
 
 **Files changed:**
 - `src/services/OpenMicDataService.ts` - Added apiUrl parameter, reads from env
 - `src/services/OpenMicDataService.ts` - Updated getAlbum() to prepend API URL
 - `.env` - Created with VITE_API_URL=http://localhost:3001
+- `backend/src/server.ts` - Added CORS headers to /uploads route
 
-**Solution:** Photos now load with full URL (http://localhost:3001/uploads/filename.jpg) instead of relative path (/uploads/filename.jpg)
+**Solution:** Photos now load with full URL (http://localhost:3001/uploads/filename.jpg) instead of relative path (/uploads/filename.jpg). Added explicit CORS headers (`Access-Control-Allow-Origin: *`, `Cross-Origin-Resource-Policy: cross-origin`) to uploads route to allow cross-origin image loading from localhost:8080 → localhost:3001 AND Vercel → ngrok.
 
 ---
 
@@ -286,12 +290,13 @@
 
 ### **Today (Get it Working):**
 ```
-1. Fix Photo Display          [5 min]  ✅ DONE
+1. Fix Photo Display          [5 min]  ✅ DONE & TESTED (localhost + Vercel)
 2. Fix Photo Delete           [5 min]  ⚠️ NEEDS TESTING  
 3. Setup ngrok + Vercel       [20 min] ✅ DONE
 4. Test with mobile data      [5 min]  ✅ DONE
+5. Fix CORS for images        [10 min] ✅ DONE
 
-Total: 35 minutes → ALL COMPLETE
+Total: 45 minutes → IMAGES WORKING!
 ```
 
 ### **This Week (Core Features):**
@@ -425,13 +430,14 @@ ngrok http 3001
 ```
 
 ---
-
 ## 🐛 Known Issues
 
 1. ~~**Photo Display:** Images show as broken - need API_URL prefix~~ ✅ FIXED
-2. **Photo Delete:** Delete button needs testing ⚠️
-3. ~~**Network Access:** Only works on local WiFi, not mobile data~~ ✅ FIXED (Vercel + ngrok)
-4. **Album Selection:** Manual dropdown confusing for customers ⚠️
+2. ~~**CORS Image Blocking:** Cross-origin image requests blocked~~ ✅ FIXED
+3. **Photo Delete:** Delete button needs testing ⚠️
+4. ~~**Network Access:** Only works on local WiFi, not mobile data~~ ✅ FIXED (Vercel + ngrok)
+5. **Album Selection:** Manual dropdown confusing for customers ⚠️
+6. **Date Display:** "Invalid Date" showing in some places ⚠️rs ⚠️
 5. **Date Display:** "Invalid Date" showing in some places ⚠️
 
 ---
@@ -451,7 +457,7 @@ ngrok http 3001
 - [x] Admin dashboard
 
 ---
-
-**Last Action:** Deployed to Vercel with ngrok backend  
-**Production URL:** https://fiere-mic-maestro-8jll1fp84-art-ais-projects.vercel.app  
+**Last Action:** Fixed CORS headers for cross-origin image loading - photos now working on both localhost and Vercel!  
+**Production URL:** https://fiere-mic-maestro-i024hsjsx-art-ais-projects.vercel.app  
+**Next Up:** Test photo delete, then implement album type system (Priority 2)84-art-ais-projects.vercel.app  
 **Next Up:** Implement album type system (Priority 2)
