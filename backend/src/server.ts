@@ -100,7 +100,7 @@ server.listen(PORT, () => {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║                                       ║');
   console.log('║          🎤  OPEN MIC  🎸           ║');
-  console.log('║         Fiere Mic Maestro             ║');
+  console.log('║          Fiere Margriet               ║');
   console.log('║                                       ║');
   console.log('╚═══════════════════════════════════════╝');
   console.log('\n');
