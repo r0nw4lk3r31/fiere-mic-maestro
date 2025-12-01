@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Camera, Upload, Trash2, Plus, ArrowLeft, GripVertical, Edit, CheckCircle, XCircle, Eye } from "lucide-react";
+import { Camera, Upload, Trash2, Plus, ArrowLeft, GripVertical, Edit, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { OpenMicDataService, initializeGlobalDataService, Album, Photo, PendingPhoto } from "@/services/OpenMicDataService";
 
 const PhotoManager = () => {
@@ -32,6 +33,7 @@ const PhotoManager = () => {
   const [newAlbumName, setNewAlbumName] = useState("");
   const [newAlbumDate, setNewAlbumDate] = useState(new Date().toISOString().split('T')[0]);
   const [newAlbumDescription, setNewAlbumDescription] = useState("");
+  const [requireApproval, setRequireApproval] = useState(false);
 
   // Photo upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -44,9 +46,35 @@ const PhotoManager = () => {
       await checkAuth(service);
       await fetchAlbums(service);
       await fetchPendingPhotos(service);
+      await loadApprovalSetting(service);
     };
     initService();
   }, [navigate]);
+
+  const loadApprovalSetting = async (service?: OpenMicDataService) => {
+    const activeService = service || dataService;
+    if (!activeService) return;
+    
+    try {
+      const value = await activeService.getSetting('require_photo_approval');
+      setRequireApproval(value === 'true');
+    } catch (error) {
+      console.error("Error loading approval setting:", error);
+    }
+  };
+
+  const toggleApprovalSetting = async (checked: boolean) => {
+    if (!dataService) return;
+    
+    try {
+      await dataService.updateSetting('require_photo_approval', checked ? 'true' : 'false');
+      setRequireApproval(checked);
+      toast.success(checked ? "Photo approval required" : "Photos auto-approved");
+    } catch (error) {
+      console.error("Error updating approval setting:", error);
+      toast.error("Failed to update setting");
+    }
+  };
 
   const checkAuth = async (service: OpenMicDataService) => {
     const isLoggedIn = await service.isAdminAuthenticated();
@@ -61,6 +89,7 @@ const PhotoManager = () => {
 
     try {
       const fetchedAlbums = await activeService.getAlbums();
+      // Admin sees ALL albums, including inactive ones
       const albumsWithPhotos = await Promise.all(
         fetchedAlbums.map(async (album) => {
           const fullAlbum = await activeService.getAlbum(album.id);
@@ -98,6 +127,19 @@ const PhotoManager = () => {
     }
   };
 
+  const toggleAlbumVisibility = async (albumId: string, isActive: boolean) => {
+    if (!dataService) return;
+
+    try {
+      await dataService.updateAlbum(albumId, { is_active: isActive });
+      toast.success(isActive ? "Album is now visible to customers" : "Album hidden from customers");
+      await fetchAlbums();
+    } catch (error) {
+      console.error("Error updating album visibility:", error);
+      toast.error("Failed to update album visibility");
+    }
+  };
+
   const deleteAlbum = async (albumId: string) => {
     if (!dataService) return;
 
@@ -125,20 +167,7 @@ const PhotoManager = () => {
     setUploading(true);
     try {
       for (const file of selectedFiles) {
-        // Convert file to base64
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-        await dataService.uploadPhoto({
-          filename: file.name,
-          data: base64,
-          caption: photoCaption.trim() || null,
-          album_id: selectedAlbum.id
-        });
+        await dataService.uploadPhoto(selectedAlbum.id, file, photoCaption.trim() || undefined);
       }
 
       toast.success(`${selectedFiles.length} photo(s) uploaded!`);
@@ -153,6 +182,19 @@ const PhotoManager = () => {
       toast.error("Failed to upload photos");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const togglePhotoVisibility = async (photoId: string, isVisible: boolean) => {
+    if (!dataService) return;
+
+    try {
+      await dataService.updatePhoto(photoId, { is_visible: isVisible });
+      toast.success(isVisible ? "Photo is now visible" : "Photo hidden from album");
+      await fetchAlbums();
+    } catch (error) {
+      console.error("Error updating photo visibility:", error);
+      toast.error("Failed to update photo visibility");
     }
   };
 
@@ -175,7 +217,9 @@ const PhotoManager = () => {
 
     try {
       const fetchedPendingPhotos = await activeService.getPendingPhotos();
-      setPendingPhotos(fetchedPendingPhotos);
+      // Add status field for filtering
+      const photosWithStatus = fetchedPendingPhotos.map(p => ({ ...p, status: 'pending' as const }));
+      setPendingPhotos(photosWithStatus);
     } catch (error) {
       console.error("Error fetching pending photos:", error);
       toast.error("Failed to load pending photos");
@@ -183,16 +227,12 @@ const PhotoManager = () => {
   };
 
   const approvePendingPhoto = async () => {
-    if (!dataService || !selectedPendingPhoto || !selectedAlbumForApproval) return;
+    if (!dataService || !selectedPendingPhoto) return;
 
     try {
-      await dataService.approvePendingPhoto(
-        selectedPendingPhoto.id,
-        selectedAlbumForApproval,
-        reviewCaption.trim() || undefined
-      );
+      await dataService.approvePendingPhoto(selectedPendingPhoto.id);
 
-      toast.success("Photo approved and added to album!");
+      toast.success("Photo approved and will be visible in the album!");
       setSelectedPendingPhoto(null);
       setReviewCaption("");
       setSelectedAlbumForApproval("");
@@ -244,15 +284,37 @@ const PhotoManager = () => {
             <p className="text-muted-foreground mt-1">
               Manage photo albums from open mic nights
             </p>
+            <div className="flex items-center gap-3 mt-3 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Switch
+                  checked={requireApproval}
+                  onCheckedChange={toggleApprovalSetting}
+                  aria-label="Require photo approval"
+                />
+                <span className={requireApproval ? "text-foreground font-medium" : "text-muted-foreground"}>
+                  Require approval for customer uploads
+                </span>
+              </label>
+              {requireApproval && (
+                <span className="text-xs text-orange-600 dark:text-orange-400">
+                  (Moderation ON - photos need review)
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
               variant={showPendingReview ? "default" : "outline"}
               onClick={() => setShowPendingReview(!showPendingReview)}
-              className={showPendingReview ? "bg-primary hover:bg-primary/90" : "border-border text-foreground hover:bg-card"}
+              className={`${showPendingReview ? "bg-primary hover:bg-primary/90" : "border-border text-foreground hover:bg-card"} relative`}
             >
               <Eye className="w-4 h-4 mr-2" />
-              Review Pending ({pendingPhotos.filter(p => p.status === 'pending').length})
+              Review Pending
+              {pendingPhotos.filter(p => p.status === 'pending').length > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-destructive text-destructive-foreground">
+                  {pendingPhotos.filter(p => p.status === 'pending').length}
+                </span>
+              )}
             </Button>
             <Button
               variant="outline"
@@ -281,25 +343,20 @@ const PhotoManager = () => {
                     .filter(p => p.status === 'pending')
                     .map((pendingPhoto) => (
                       <div key={pendingPhoto.id} className="bg-card rounded-lg border border-border p-4">
-                        <div className="aspect-square mb-4">
+                        <div className="aspect-square mb-4 cursor-pointer" onClick={() => window.open(pendingPhoto.url, '_blank')}>
                           <img
-                            src={pendingPhoto.data}
-                            alt={pendingPhoto.filename}
-                            className="w-full h-full object-cover rounded-lg"
+                            src={pendingPhoto.url}
+                            alt={pendingPhoto.original_name}
+                            className="w-full h-full object-cover rounded-lg hover:opacity-90 transition-opacity"
                           />
                         </div>
                         <div className="space-y-2">
                           <div>
                             <p className="text-sm font-medium text-foreground">
-                              Uploaded by: {pendingPhoto.uploader_name || 'Anonymous'}
+                              Uploaded by: {pendingPhoto.uploaded_by || 'Anonymous'}
                             </p>
-                            {pendingPhoto.uploader_email && (
-                              <p className="text-xs text-muted-foreground">
-                                {pendingPhoto.uploader_email}
-                              </p>
-                            )}
                             <p className="text-xs text-muted-foreground">
-                              {new Date(pendingPhoto.uploaded_at).toLocaleDateString('nl-NL', {
+                              {new Date(pendingPhoto.created_at).toLocaleDateString('nl-NL', {
                                 year: 'numeric',
                                 month: 'short',
                                 day: 'numeric',
@@ -308,9 +365,9 @@ const PhotoManager = () => {
                               })}
                             </p>
                           </div>
-                          {pendingPhoto.caption && (
+                          {pendingPhoto.uploaded_by && !pendingPhoto.uploaded_by.match(/^\d+\./) && (
                             <p className="text-sm text-muted-foreground italic">
-                              "{pendingPhoto.caption}"
+                              Uploader: {pendingPhoto.uploaded_by}
                             </p>
                           )}
                           <div className="flex gap-2">
@@ -336,7 +393,7 @@ const PhotoManager = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Reject Photo?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will reject the photo from {pendingPhoto.uploader_name || 'the uploader'}.
+                                    This will reject the photo from {pendingPhoto.uploaded_by || 'the uploader'}.
                                     The photo will be marked as rejected and won't be published.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
@@ -441,8 +498,8 @@ const PhotoManager = () => {
                         }`}
                         onClick={() => setSelectedAlbum(album)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1" onClick={() => setSelectedAlbum(album)}>
                             <h4 className="font-medium text-foreground">{album.name}</h4>
                             <p className="text-sm text-muted-foreground">
                               {new Date(album.date).toLocaleDateString('nl-NL')}
@@ -451,7 +508,18 @@ const PhotoManager = () => {
                               {album.photos?.length || 0} photos
                             </p>
                           </div>
-                          <AlertDialog>
+                          <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={album.is_active}
+                                onCheckedChange={(checked) => toggleAlbumVisibility(album.id, checked)}
+                                aria-label="Toggle album visibility"
+                              />
+                              <span className="text-xs text-muted-foreground">
+                                {album.is_active ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                              </span>
+                            </div>
+                            <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="ghost"
@@ -481,6 +549,7 @@ const PhotoManager = () => {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -579,13 +648,24 @@ const PhotoManager = () => {
                     {selectedAlbum.photos && selectedAlbum.photos.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {selectedAlbum.photos.map((photo) => (
-                          <div key={photo.id} className="relative group">
+                          <div key={photo.id} className="space-y-2">
                             <img
-                              src={photo.data}
-                              alt={photo.caption || photo.filename}
-                              className="w-full h-32 object-cover rounded-lg border border-border"
+                              src={photo.url}
+                              alt={photo.original_name}
+                              onClick={() => window.open(photo.url, '_blank')}
+                              className={`w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity ${!photo.is_visible ? 'opacity-50' : ''}`}
                             />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                            <div className="flex items-center justify-between gap-2 px-1">
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={photo.is_visible}
+                                  onCheckedChange={(checked) => togglePhotoVisibility(photo.id, checked)}
+                                  aria-label="Toggle photo visibility"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  {photo.is_visible ? 'Visible' : 'Hidden'}
+                                </span>
+                              </div>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -615,10 +695,10 @@ const PhotoManager = () => {
                                 </AlertDialogContent>
                               </AlertDialog>
                             </div>
-                            {photo.caption && (
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-1 rounded-b-lg">
-                                <p className="text-xs truncate">{photo.caption}</p>
-                              </div>
+                            {photo.uploaded_by && (
+                              <p className="text-xs text-muted-foreground truncate px-1">
+                                By: {photo.uploaded_by}
+                              </p>
                             )}
                           </div>
                         ))}
@@ -656,82 +736,72 @@ const PhotoManager = () => {
             {selectedPendingPhoto && (
               <div className="space-y-4">
                 <div className="flex gap-4">
-                  <div className="flex-1">
+                  <div className="flex-1 cursor-pointer" onClick={() => window.open(selectedPendingPhoto.url, '_blank')}>
                     <img
-                      src={selectedPendingPhoto.data}
-                      alt={selectedPendingPhoto.filename}
-                      className="w-full h-64 object-cover rounded-lg"
+                      src={selectedPendingPhoto.url}
+                      alt={selectedPendingPhoto.original_name}
+                      className="w-full h-64 object-cover rounded-lg hover:opacity-90 transition-opacity"
                     />
                   </div>
                   <div className="flex-1 space-y-2">
                     <div>
                       <Label className="text-sm font-medium">Uploaded by</Label>
                       <p className="text-sm text-muted-foreground">
-                        {selectedPendingPhoto.uploader_name || 'Anonymous'}
+                        {selectedPendingPhoto.uploaded_by || 'Anonymous'}
                       </p>
-                      {selectedPendingPhoto.uploader_email && (
-                        <p className="text-xs text-muted-foreground">
-                          {selectedPendingPhoto.uploader_email}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Uploaded</Label>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(selectedPendingPhoto.uploaded_at).toLocaleString('nl-NL')}
+                        {new Date(selectedPendingPhoto.created_at).toLocaleString('nl-NL')}
                       </p>
                     </div>
-                    {selectedPendingPhoto.caption && (
-                      <div>
-                        <Label className="text-sm font-medium">Original Caption</Label>
-                        <p className="text-sm text-muted-foreground italic">
-                          "{selectedPendingPhoto.caption}"
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="reviewAlbum">Add to Album *</Label>
-                    <select
-                      id="reviewAlbum"
-                      value={selectedAlbumForApproval}
-                      onChange={(e) => setSelectedAlbumForApproval(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 bg-background border border-border rounded-md text-foreground"
-                    >
-                      <option value="">Select an album...</option>
-                      {albums.map((album) => (
-                        <option key={album.id} value={album.id}>
-                          {album.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="reviewCaption">Edit Caption (optional)</Label>
-                    <Textarea
-                      id="reviewCaption"
-                      value={reviewCaption}
-                      onChange={(e) => setReviewCaption(e.target.value)}
-                      placeholder="Edit or add a caption for this photo..."
-                      rows={3}
-                    />
+                    <Label>Album</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {albums.find(a => a.id === selectedPendingPhoto.album_id)?.name || 'Unknown Album'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      This photo was uploaded to this album by the customer
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedPendingPhoto(null)}
-                  >
-                    Cancel
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline">
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reject Photo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will reject the photo. It will remain in the system but won't be visible to customers.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            rejectPendingPhoto(selectedPendingPhoto.id);
+                            setSelectedPendingPhoto(null);
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Reject Photo
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button
                     onClick={approvePendingPhoto}
-                    disabled={!selectedAlbumForApproval}
                     className="bg-primary hover:bg-primary/90"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />

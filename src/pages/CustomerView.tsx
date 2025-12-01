@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { OpenMicDataService, initializeGlobalDataService, Album, Photo, PendingPhoto } from "@/services/OpenMicDataService";
+import { OpenMicDataService, initializeGlobalDataService, Album, Photo } from "@/services/OpenMicDataService";
 
 interface Artist {
   id: string;
@@ -35,10 +35,35 @@ const CustomerView = () => {
     const initService = async () => {
       const service = await initializeGlobalDataService();
       setDataService(service);
+
+      // Set up real-time listeners
+      service.on('artist:created', () => fetchArtists(service));
+      service.on('artist:updated', () => fetchArtists(service));
+      service.on('artist:deleted', () => fetchArtists(service));
+      service.on('artists:reordered', () => fetchArtists(service));
+
+      service.on('album:created', () => fetchAlbums(service));
+      service.on('album:updated', () => fetchAlbums(service));
+
+      service.on('photo:approved', () => fetchAlbums(service));
+
       await fetchArtists(service);
       await fetchAlbums(service);
     };
     initService();
+
+    // Cleanup listeners on unmount
+    return () => {
+      if (dataService) {
+        dataService.off('artist:created');
+        dataService.off('artist:updated');
+        dataService.off('artist:deleted');
+        dataService.off('artists:reordered');
+        dataService.off('album:created');
+        dataService.off('album:updated');
+        dataService.off('photo:approved');
+      }
+    };
   }, []);
 
   const fetchArtists = async (service?: OpenMicDataService) => {
@@ -63,12 +88,14 @@ const CustomerView = () => {
 
     try {
       const fetchedAlbums = await activeService.getAlbums();
-      // Load photos for each album
+      // Load photos for each album and filter to only active albums
       const albumsWithPhotos = await Promise.all(
-        fetchedAlbums.map(async (album) => {
-          const fullAlbum = await activeService.getAlbum(album.id);
-          return fullAlbum || album;
-        })
+        fetchedAlbums
+          .filter(album => album.is_active) // Only show active albums
+          .map(async (album) => {
+            const fullAlbum = await activeService.getAlbum(album.id);
+            return fullAlbum || album;
+          })
       );
       setAlbums(albumsWithPhotos);
     } catch (error) {
@@ -101,33 +128,28 @@ const CustomerView = () => {
       return;
     }
 
+    // Find the most recent active album to upload to
+    const activeAlbums = albums
+      .filter(album => album.is_active)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    if (activeAlbums.length === 0) {
+      toast.error("No active albums available for upload");
+      return;
+    }
+
     setUploading(true);
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64Data = e.target?.result as string;
-        
-        const photoData = {
-          filename: selectedFile.name,
-          data: base64Data,
-          caption: photoCaption.trim() || null,
-          uploader_name: uploaderName.trim(),
-          uploader_email: uploaderEmail.trim() || null
-        };
+      await dataService.uploadPhoto(activeAlbums[0].id, selectedFile, photoCaption.trim() || undefined);
 
-        await dataService.submitPendingPhoto(photoData);
-        
-        toast.success("Photo submitted for review! Thank you for sharing your memories.");
-        
-        // Reset form
-        setSelectedFile(null);
-        setUploaderName("");
-        setUploaderEmail("");
-        setPhotoCaption("");
-        setShowUploadForm(false);
-      };
-      reader.readAsDataURL(selectedFile);
+      toast.success("Photo uploaded successfully! It will be reviewed by admins before being published.");
+
+      // Reset form
+      setSelectedFile(null);
+      setUploaderName("");
+      setUploaderEmail("");
+      setPhotoCaption("");
+      setShowUploadForm(false);
     } catch (error) {
       console.error("Error uploading photo:", error);
       toast.error("Failed to upload photo. Please try again.");
@@ -239,26 +261,25 @@ const CustomerView = () => {
 
                   {album.photos && album.photos.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {album.photos.map((photo) => (
+                      {album.photos
+                        .filter(photo => photo.is_approved && photo.is_visible)
+                        .map((photo) => (
                         <div
                           key={photo.id}
                           className="relative group cursor-pointer"
                           onClick={() => {
-                            // Open photo in modal or lightbox (for now just open in new tab)
-                            const image = new Image();
-                            image.src = photo.data;
-                            const newWindow = window.open();
-                            newWindow?.document.write(`<img src="${photo.data}" style="max-width: 100%; max-height: 100vh;" />`);
+                            // Open photo in new tab
+                            window.open(photo.url, '_blank');
                           }}
                         >
                           <img
-                            src={photo.data}
-                            alt={photo.caption || photo.filename}
+                            src={photo.url}
+                            alt={photo.original_name}
                             className="w-full h-48 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
                           />
-                          {photo.caption && (
+                          {photo.uploaded_by && (
                             <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 rounded-b-lg">
-                              <p className="text-sm">{photo.caption}</p>
+                              <p className="text-sm">Uploaded by: {photo.uploaded_by}</p>
                             </div>
                           )}
                         </div>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { LogOut, Trash2, ChevronUp, ChevronDown, Save, Camera } from "lucide-react";
+import { LogOut, Trash2, ChevronUp, ChevronDown, Save, Camera, Download, Upload } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,17 +25,34 @@ const AdminDashboard = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Artist>>({});
   const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
+  const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const initService = async () => {
       const service = await initializeGlobalDataService();
       setDataService(service);
 
+      // Set up real-time listeners
+      service.on('artist:created', () => fetchArtists(service));
+      service.on('artist:updated', () => fetchArtists(service));
+      service.on('artist:deleted', () => fetchArtists(service));
+      service.on('artists:reordered', () => fetchArtists(service));
+
       await checkAuth(service);
       await fetchArtists(service);
     };
 
     initService();
+
+    // Cleanup listeners on unmount
+    return () => {
+      if (dataService) {
+        dataService.off('artist:created');
+        dataService.off('artist:updated');
+        dataService.off('artist:deleted');
+        dataService.off('artists:reordered');
+      }
+    };
   }, [navigate]);
 
   const checkAuth = async (service?: OpenMicDataService) => {
@@ -96,6 +113,43 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error updating artist:", error);
       toast.error("Failed to update artist");
+    }
+  };
+
+  const handleExportData = async () => {
+    if (!dataService) return;
+    try {
+      const data = await dataService.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `openmic-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Data exported successfully");
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      toast.error("Failed to export data");
+    }
+  };
+
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!dataService) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      await dataService.importData(data);
+      await fetchArtists();
+      toast.success("Data imported successfully");
+    } catch (error) {
+      console.error("Error importing data:", error);
+      toast.error("Failed to import data");
     }
   };
 
@@ -164,6 +218,22 @@ const AdminDashboard = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportData}
+              className="border-border text-foreground hover:bg-card"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Data
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => importInputRef?.click()}
+              className="border-border text-foreground hover:bg-card"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Import Data
+            </Button>
             <Button
               variant="outline"
               onClick={() => navigate("/admin/photos")}
@@ -331,6 +401,13 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+      <input
+        type="file"
+        ref={setImportInputRef}
+        onChange={handleImportData}
+        accept=".json"
+        style={{ display: 'none' }}
+      />
     </div>
   );
 };

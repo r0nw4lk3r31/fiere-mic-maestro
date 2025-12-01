@@ -9,7 +9,7 @@ import { OpenMicDataService, initializeGlobalDataService } from "@/services/Open
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [dataService, setDataService] = useState<OpenMicDataService | null>(null);
@@ -29,7 +29,7 @@ const AdminLogin = () => {
     setIsLoggingIn(true);
 
     try {
-      const success = await dataService.authenticateAdmin(email, password);
+      const success = await dataService.authenticateAdmin(username, password);
       if (success) {
         toast.success("Welcome back!");
         navigate("/admin");
@@ -69,15 +69,15 @@ const AdminLogin = () => {
           <div className="bg-card rounded-xl p-6 border border-border shadow-lg">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="email" className="text-foreground">
-                  Email
+                <Label htmlFor="username" className="text-foreground">
+                  Username
                 </Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@fieremargriet.com"
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin"
                   className="mt-2 bg-background border-border text-foreground"
                   required
                 />

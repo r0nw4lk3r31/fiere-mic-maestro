@@ -1,68 +1,195 @@
 /**
- * Open Mic Data Service
- * Manages application data using PlatformStorageService
+ * Open Mic Data Service - API Version
+ * Manages application data using REST API and real-time Socket.io
  */
 
-import { PlatformStorageService } from '../platform/services/PlatformStorageService';
+import io, { Socket } from 'socket.io-client';
 
 export interface Artist {
   id: string;
   name: string;
-  song_description: string | null;
-  preferred_time: string | null;
-  performance_order: number | null;
-  status: string;
+  song_description?: string;
+  preferred_time?: string;
+  performance_order: number;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Album {
   id: string;
   name: string;
-  date: string; // ISO date string
-  description: string | null;
+  description?: string;
+  date: string;
+  is_active: boolean;
   created_at: string;
-  photos: Photo[];
+  updated_at: string;
+  photos?: Photo[];
 }
 
 export interface Photo {
   id: string;
+  album_id?: string;
   filename: string;
-  data: string; // base64 encoded image
-  caption: string | null;
-  uploaded_at: string;
-  album_id: string;
-  order: number;
+  original_name: string;
+  mime_type: string;
+  size: number;
+  url: string;
+  is_approved: boolean;
+  is_visible: boolean;
+  uploaded_by?: string;
+  created_at: string;
+  updated_at: string;
+  album_name?: string;
 }
 
-export interface PendingPhoto {
-  id: string;
-  filename: string;
-  data: string; // base64 encoded image
-  caption: string | null;
-  uploaded_at: string;
-  uploader_name: string | null;
-  uploader_email: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+export interface PendingPhoto extends Photo {
+  // Pending photos are just unapproved photos (is_approved = false)
+  status?: 'pending' | 'approved' | 'rejected';
+}
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: {
+    message: string;
+    code?: string;
+  };
+}
+
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+  };
 }
 
 export class OpenMicDataService {
-  private storage: PlatformStorageService;
-  private readonly artistsKey = 'artists';
-  private readonly adminAuthKey = 'admin_authenticated';
-  private readonly albumsKey = 'albums';
-  private readonly photosKey = 'photos';
-  private readonly pendingPhotosKey = 'pending_photos';
+  private apiUrl: string;
+  private socket: Socket | null = null;
+  private authToken: string | null = null;
 
-  constructor(storage: PlatformStorageService) {
-    this.storage = storage;
+  // Event listeners
+  private listeners: { [event: string]: ((data: any) => void)[] } = {};
+
+  constructor(apiUrl?: string) {
+    // Use environment variable if available, otherwise default to localhost
+    this.apiUrl = apiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    console.log('🌐 API URL:', this.apiUrl);
+    this.initializeSocket();
+    this.initializeAuth();
   }
 
   /**
    * Initialize the data service
    */
   async initialize(): Promise<void> {
-    // Ensure storage is initialized
-    await this.storage.initialize();
+    this.initializeSocket();
+  }
+
+  /**
+   * Initialize Socket.io connection
+   */
+  private initializeSocket(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+
+    this.socket = io(this.apiUrl, {
+      transports: ['websocket', 'polling']
+    });
+
+    this.socket.on('connect', () => {
+      console.log('🔌 Connected to server');
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('🔌 Disconnected from server');
+    });
+
+    // Set up event listeners
+    this.setupSocketListeners();
+  }
+
+  /**
+   * Set up Socket.io event listeners
+   */
+  private setupSocketListeners(): void {
+    if (!this.socket) return;
+
+    const events = [
+      'artist:created',
+      'artist:updated',
+      'artist:deleted',
+      'artists:reordered',
+      'album:created',
+      'album:updated',
+      'photo:uploaded',
+      'photo:approved'
+    ];
+
+    events.forEach(event => {
+      this.socket!.on(event, (data: any) => {
+        this.emit(event, data);
+      });
+    });
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  private async apiRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.apiUrl}${endpoint}`;
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Event system for real-time updates
+   */
+  on(event: string, callback: (data: any) => void): void {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(callback);
+  }
+
+  off(event: string, callback?: (data: any) => void): void {
+    if (!this.listeners[event]) return;
+
+    if (callback) {
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    } else {
+      delete this.listeners[event];
+    }
+  }
+
+  private emit(event: string, data: any): void {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(callback => callback(data));
+    }
   }
 
   // Artist Management
@@ -71,74 +198,48 @@ export class OpenMicDataService {
    * Get all artists
    */
   async getArtists(): Promise<Artist[]> {
-    const artists = await this.storage.get(this.artistsKey, 'archive');
-    if (!artists) return [];
-
-    // Sort by performance order
-    return artists.sort((a: Artist, b: Artist) =>
-      (a.performance_order || 0) - (b.performance_order || 0)
-    );
+    const response = await this.apiRequest<ApiResponse<Artist[]>>('/api/artists');
+    return response.data || [];
   }
 
   /**
    * Add a new artist
    */
-  async addArtist(artistData: Omit<Artist, 'id' | 'performance_order' | 'created_at'>): Promise<Artist> {
-    const existingArtists = await this.getArtists();
-
-    const newArtist: Artist = {
-      ...artistData,
-      id: Date.now().toString(),
-      performance_order: existingArtists.length,
-      created_at: new Date().toISOString()
-    };
-
-    const updatedArtists = [...existingArtists, newArtist];
-    await this.storage.set(this.artistsKey, updatedArtists, 'archive');
-
-    return newArtist;
+  async addArtist(artistData: Omit<Artist, 'id' | 'performance_order' | 'created_at' | 'updated_at'>): Promise<Artist> {
+    const response = await this.apiRequest<ApiResponse<Artist>>('/api/artists', {
+      method: 'POST',
+      body: JSON.stringify(artistData)
+    });
+    return response.data!;
   }
 
   /**
    * Update an artist
    */
-  async updateArtist(id: string, updates: Partial<Artist>): Promise<void> {
-    const artists = await this.getArtists();
-    const updatedArtists = artists.map(artist =>
-      artist.id === id ? { ...artist, ...updates } : artist
-    );
-
-    await this.storage.set(this.artistsKey, updatedArtists, 'archive');
+  async updateArtist(id: string, updates: Partial<Omit<Artist, 'id' | 'created_at'>>): Promise<void> {
+    await this.apiRequest(`/api/artists/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
   }
 
   /**
    * Delete an artist
    */
   async deleteArtist(id: string): Promise<void> {
-    const artists = await this.getArtists();
-    const filteredArtists = artists.filter(artist => artist.id !== id);
-
-    // Reorder remaining artists
-    const reorderedArtists = filteredArtists.map((artist, index) => ({
-      ...artist,
-      performance_order: index
-    }));
-
-    await this.storage.set(this.artistsKey, reorderedArtists, 'archive');
+    await this.apiRequest(`/api/artists/${id}`, {
+      method: 'DELETE'
+    });
   }
 
   /**
    * Reorder artists
    */
   async reorderArtists(artistIds: string[]): Promise<void> {
-    const artists = await this.getArtists();
-    const reorderedArtists = artistIds.map((id, index) => {
-      const artist = artists.find(a => a.id === id);
-      if (!artist) throw new Error(`Artist ${id} not found`);
-      return { ...artist, performance_order: index };
+    await this.apiRequest('/api/artists/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ artistIds })
     });
-
-    await this.storage.set(this.artistsKey, reorderedArtists, 'archive');
   }
 
   // Album Management
@@ -147,77 +248,63 @@ export class OpenMicDataService {
    * Get all albums
    */
   async getAlbums(): Promise<Album[]> {
-    const albums = await this.storage.get(this.albumsKey, 'archive');
-    if (!albums) return [];
-
-    // Sort by date (newest first)
-    return albums.sort((a: Album, b: Album) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    const response = await this.apiRequest<ApiResponse<Album[]>>('/api/albums');
+    return response.data || [];
   }
 
   /**
    * Get a specific album with photos
    */
   async getAlbum(id: string): Promise<Album | null> {
-    const albums = await this.getAlbums();
-    const album = albums.find(a => a.id === id);
-    if (!album) return null;
+    try {
+      const response = await this.apiRequest<ApiResponse<Album>>(`/api/albums/${id}`);
+      const album = response.data;
+      if (!album) return null;
 
-    // Load photos for this album
-    const allPhotos = await this.getPhotos();
-    album.photos = allPhotos.filter(p => p.album_id === id)
-      .sort((a, b) => a.order - b.order);
+      // Load photos for this album
+      const photosResponse = await this.apiRequest<ApiResponse<Photo[]>>(`/api/photos?album_id=${id}`, {
+        method: 'GET'
+      });
+      album.photos = (photosResponse.data || []).map(p => ({
+        ...p,
+        // Ensure photo URLs include the full API URL
+        url: p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`
+      }));
 
-    return album;
+      return album;
+    } catch (error) {
+      return null;
+    }
   }
 
   /**
    * Create a new album
    */
-  async createAlbum(albumData: Omit<Album, 'id' | 'created_at' | 'photos'>): Promise<Album> {
-    const existingAlbums = await this.getAlbums();
-
-    const newAlbum: Album = {
-      ...albumData,
-      id: Date.now().toString(),
-      created_at: new Date().toISOString(),
-      photos: []
-    };
-
-    const updatedAlbums = [...existingAlbums, newAlbum];
-    await this.storage.set(this.albumsKey, updatedAlbums, 'archive');
-
-    return newAlbum;
+  async createAlbum(albumData: Omit<Album, 'id' | 'created_at' | 'updated_at' | 'photos'>): Promise<Album> {
+    const response = await this.apiRequest<ApiResponse<Album>>('/api/albums', {
+      method: 'POST',
+      body: JSON.stringify(albumData)
+    });
+    return response.data!;
   }
 
   /**
    * Update an album
    */
   async updateAlbum(id: string, updates: Partial<Omit<Album, 'id' | 'created_at' | 'photos'>>): Promise<void> {
-    const albums = await this.getAlbums();
-    const updatedAlbums = albums.map(album =>
-      album.id === id ? { ...album, ...updates } : album
-    );
-
-    await this.storage.set(this.albumsKey, updatedAlbums, 'archive');
+    await this.apiRequest(`/api/albums/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
   }
 
   /**
-   * Delete an album and all its photos
+   * Delete an album
    */
   async deleteAlbum(id: string): Promise<void> {
-    // Delete all photos in the album
-    const photos = await this.getPhotos();
-    const photosToDelete = photos.filter(p => p.album_id === id);
-    for (const photo of photosToDelete) {
-      await this.deletePhoto(photo.id);
-    }
-
-    // Delete the album
-    const albums = await this.getAlbums();
-    const filteredAlbums = albums.filter(album => album.id !== id);
-    await this.storage.set(this.albumsKey, filteredAlbums, 'archive');
+    await this.apiRequest(`/api/albums/${id}`, {
+      method: 'DELETE'
+    });
   }
 
   // Photo Management
@@ -225,176 +312,120 @@ export class OpenMicDataService {
   /**
    * Get all photos
    */
-  async getPhotos(): Promise<Photo[]> {
-    const photos = await this.storage.get(this.photosKey, 'archive'); // Use archive for larger data
-    if (!photos) return [];
-
-    return photos.sort((a: Photo, b: Photo) => a.order - b.order);
+  async getPhotos(albumId?: string): Promise<Photo[]> {
+    const url = albumId ? `/api/photos?album_id=${albumId}` : '/api/photos';
+    const response = await this.apiRequest<ApiResponse<Photo[]>>(url);
+    return response.data || [];
   }
 
   /**
    * Upload a new photo
    */
-  async uploadPhoto(photoData: Omit<Photo, 'id' | 'uploaded_at' | 'order'>): Promise<Photo> {
-    const existingPhotos = await this.getPhotos();
-    const albumPhotos = existingPhotos.filter(p => p.album_id === photoData.album_id);
+  async uploadPhoto(albumId: string, file: File, caption?: string): Promise<Photo> {
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('album_id', albumId);
+    if (caption) {
+      formData.append('caption', caption);
+    }
 
-    const newPhoto: Photo = {
-      ...photoData,
-      id: Date.now().toString(),
-      uploaded_at: new Date().toISOString(),
-      order: albumPhotos.length
-    };
+    const response = await fetch(`${this.apiUrl}/api/photos`, {
+      method: 'POST',
+      headers: this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {},
+      body: formData
+    });
 
-    const updatedPhotos = [...existingPhotos, newPhoto];
-    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
 
-    return newPhoto;
+    const result = await response.json();
+    return result.data;
   }
 
   /**
    * Update a photo
    */
-  async updatePhoto(id: string, updates: Partial<Omit<Photo, 'id' | 'uploaded_at'>>): Promise<void> {
-    const photos = await this.getPhotos();
-    const updatedPhotos = photos.map(photo =>
-      photo.id === id ? { ...photo, ...updates } : photo
-    );
+  async updatePhoto(id: string, updates: { is_approved?: boolean; is_visible?: boolean }): Promise<void> {
+    await this.apiRequest(`/api/photos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+  }
 
-    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
+  /**
+   * Approve a photo
+   */
+  async approvePhoto(id: string, approved: boolean): Promise<void> {
+    await this.apiRequest(`/api/photos/${id}/approve`, {
+      method: 'PUT',
+      body: JSON.stringify({ approved })
+    });
   }
 
   /**
    * Delete a photo
    */
   async deletePhoto(id: string): Promise<void> {
-    const photos = await this.getPhotos();
-    const filteredPhotos = photos.filter(photo => photo.id !== id);
-
-    // Reorder remaining photos in the same album
-    const photoToDelete = photos.find(p => p.id === id);
-    if (photoToDelete) {
-      const albumPhotos = filteredPhotos.filter(p => p.album_id === photoToDelete.album_id);
-      const reorderedPhotos = albumPhotos.map((photo, index) => ({
-        ...photo,
-        order: index
-      }));
-
-      // Update the filtered photos with reordered ones
-      const otherPhotos = filteredPhotos.filter(p => p.album_id !== photoToDelete.album_id);
-      const finalPhotos = [...otherPhotos, ...reorderedPhotos];
-
-      await this.storage.set(this.photosKey, finalPhotos, 'archive');
-    } else {
-      await this.storage.set(this.photosKey, filteredPhotos, 'archive');
-    }
-  }
-
-  /**
-   * Reorder photos in an album
-   */
-  async reorderPhotos(albumId: string, photoIds: string[]): Promise<void> {
-    const photos = await this.getPhotos();
-    const updatedPhotos = photos.map(photo => {
-      if (photo.album_id === albumId) {
-        const newOrder = photoIds.indexOf(photo.id);
-        if (newOrder !== -1) {
-          return { ...photo, order: newOrder };
-        }
-      }
-      return photo;
+    await this.apiRequest(`/api/photos/${id}`, {
+      method: 'DELETE'
     });
-
-    await this.storage.set(this.photosKey, updatedPhotos, 'archive');
   }
 
-  // Pending Photo Management
+  // Pending Photo Management (Legacy - now handled by backend)
 
   /**
-   * Get all pending photos
+   * Get all pending photos (for admin review)
    */
-  async getPendingPhotos(): Promise<PendingPhoto[]> {
-    const pendingPhotos = await this.storage.get(this.pendingPhotosKey, 'archive');
-    if (!pendingPhotos) return [];
-
-    return pendingPhotos.sort((a: PendingPhoto, b: PendingPhoto) =>
-      new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
-    );
+  async getPendingPhotos(): Promise<Photo[]> {
+    const response = await this.apiRequest<ApiResponse<Photo[]>>('/api/photos?approved=false');
+    return response.data || [];
   }
 
   /**
-   * Submit a pending photo for review
+   * Submit a pending photo for review (now uploads directly to backend)
    */
-  async submitPendingPhoto(photoData: Omit<PendingPhoto, 'id' | 'uploaded_at' | 'status'>): Promise<PendingPhoto> {
-    const existingPendingPhotos = await this.getPendingPhotos();
-
-    const newPendingPhoto: PendingPhoto = {
-      ...photoData,
-      id: Date.now().toString(),
-      uploaded_at: new Date().toISOString(),
-      status: 'pending'
-    };
-
-    const updatedPendingPhotos = [...existingPendingPhotos, newPendingPhoto];
-    await this.storage.set(this.pendingPhotosKey, updatedPendingPhotos, 'archive');
-
-    return newPendingPhoto;
+  async submitPendingPhoto(albumId: string, file: File, caption?: string): Promise<Photo> {
+    return this.uploadPhoto(albumId, file, caption);
   }
 
   /**
-   * Approve a pending photo and add it to an album
+   * Approve a pending photo
    */
-  async approvePendingPhoto(pendingPhotoId: string, albumId: string, caption?: string): Promise<Photo> {
-    const pendingPhotos = await this.getPendingPhotos();
-    const pendingPhoto = pendingPhotos.find(p => p.id === pendingPhotoId);
-
-    if (!pendingPhoto) {
-      throw new Error('Pending photo not found');
-    }
-
-    // Create the approved photo
-    const photoData = {
-      filename: pendingPhoto.filename,
-      data: pendingPhoto.data,
-      caption: caption || pendingPhoto.caption,
-      album_id: albumId
-    };
-
-    const approvedPhoto = await this.uploadPhoto(photoData);
-
-    // Update pending photo status
-    await this.updatePendingPhoto(pendingPhotoId, { status: 'approved' });
-
-    return approvedPhoto;
+  async approvePendingPhoto(pendingPhotoId: string): Promise<void> {
+    await this.approvePhoto(pendingPhotoId, true);
   }
 
   /**
    * Reject a pending photo
    */
   async rejectPendingPhoto(pendingPhotoId: string): Promise<void> {
-    await this.updatePendingPhoto(pendingPhotoId, { status: 'rejected' });
+    await this.approvePhoto(pendingPhotoId, false);
+  }
+
+  // Settings Management
+
+  /**
+   * Get a setting value
+   */
+  async getSetting(key: string): Promise<string | null> {
+    try {
+      const response = await this.apiRequest<ApiResponse<{ key: string; value: string } | null>>(`/api/settings/${key}`);
+      return response.data?.value || null;
+    } catch (error) {
+      return null;
+    }
   }
 
   /**
-   * Update a pending photo
+   * Update a setting
    */
-  async updatePendingPhoto(id: string, updates: Partial<Omit<PendingPhoto, 'id' | 'uploaded_at'>>): Promise<void> {
-    const pendingPhotos = await this.getPendingPhotos();
-    const updatedPendingPhotos = pendingPhotos.map(pendingPhoto =>
-      pendingPhoto.id === id ? { ...pendingPhoto, ...updates } : pendingPhoto
-    );
-
-    await this.storage.set(this.pendingPhotosKey, updatedPendingPhotos, 'archive');
-  }
-
-  /**
-   * Delete a pending photo
-   */
-  async deletePendingPhoto(id: string): Promise<void> {
-    const pendingPhotos = await this.getPendingPhotos();
-    const filteredPendingPhotos = pendingPhotos.filter(pendingPhoto => pendingPhoto.id !== id);
-
-    await this.storage.set(this.pendingPhotosKey, filteredPendingPhotos, 'archive');
+  async updateSetting(key: string, value: string): Promise<void> {
+    await this.apiRequest(`/api/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value })
+    });
   }
 
   // Admin Authentication
@@ -403,115 +434,80 @@ export class OpenMicDataService {
    * Check admin authentication
    */
   async isAdminAuthenticated(): Promise<boolean> {
-    const auth = await this.storage.get(this.adminAuthKey, 'hot'); // Use hot tier for session
-    return auth === true;
+    return this.authToken !== null;
   }
 
   /**
    * Authenticate admin
    */
-  async authenticateAdmin(email: string, password: string): Promise<boolean> {
-    // Simple hardcoded check (same as before)
-    if (email === "admin@fieremargriet.com" && password === "admin123") {
-      await this.storage.set(this.adminAuthKey, true, 'hot');
-      return true;
+  async authenticateAdmin(username: string, password: string): Promise<boolean> {
+    try {
+      const response = await this.apiRequest<ApiResponse<AuthResponse>>('/api/admin/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
+
+      if (response.data) {
+        this.authToken = response.data.token;
+        // Store token in localStorage for persistence
+        localStorage.setItem('admin_token', this.authToken);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      return false;
     }
-    return false;
   }
 
   /**
    * Logout admin
    */
   async logoutAdmin(): Promise<void> {
-    await this.storage.delete(this.adminAuthKey, 'hot');
+    this.authToken = null;
+    localStorage.removeItem('admin_token');
+  }
+
+  /**
+   * Initialize auth from stored token
+   */
+  private initializeAuth(): void {
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+      this.authToken = token;
+    }
   }
 
   // Utility methods
 
   /**
-   * Migrate data from cold tier to archive tier (one-time migration)
+   * Export all data (for backup/sync)
    */
-  async migrateDataFromColdToArchive(): Promise<void> {
-    console.log('🔄 Starting data migration from cold to archive tier...');
+  async exportData(): Promise<{ artists: Artist[]; albums: Album[]; photos: Photo[] }> {
+    const [artists, albums, photos] = await Promise.all([
+      this.getArtists(),
+      this.getAlbums(),
+      this.getPhotos()
+    ]);
 
-    try {
-      // Migrate artists
-      const artistsData = await this.storage.get(this.artistsKey, 'cold');
-      if (artistsData) {
-        await this.storage.set(this.artistsKey, artistsData, 'archive');
-        await this.storage.delete(this.artistsKey, 'cold');
-        console.log('✅ Migrated artists data');
-      }
-
-      // Migrate albums
-      const albumsData = await this.storage.get(this.albumsKey, 'cold');
-      if (albumsData) {
-        await this.storage.set(this.albumsKey, albumsData, 'archive');
-        await this.storage.delete(this.albumsKey, 'cold');
-        console.log('✅ Migrated albums data');
-      }
-
-      console.log('🎉 Data migration completed successfully!');
-    } catch (error) {
-      console.error('❌ Data migration failed:', error);
-      throw error;
-    }
+    return { artists, albums, photos };
   }
 
   /**
-   * Get storage statistics
+   * Import data (for restore/sync)
    */
-  async getStorageStats() {
-    const hotStats = await this.storage.getStats('hot');
-    const archiveStats = await this.storage.getStats('archive');
-
-    return {
-      hot: hotStats,
-      archive: archiveStats,
-      cache: this.storage.getCacheStats()
-    };
+  async importData(data: { artists?: Artist[]; albums?: Album[]; photos?: Photo[] }): Promise<void> {
+    // This would require admin privileges and special import endpoints
+    // For now, we'll skip this as the backend handles data persistence
+    console.warn('Import functionality requires backend admin access');
   }
 
   /**
-   * Export all data
+   * Get API health status
    */
-  async exportData(): Promise<{ artists: Artist[]; albums: Album[]; photos: Photo[]; pendingPhotos: PendingPhoto[]; adminAuthenticated: boolean }> {
-    const artists = await this.getArtists();
-    const albums = await this.getAlbums();
-    const photos = await this.getPhotos();
-    const pendingPhotos = await this.getPendingPhotos();
-    const adminAuthenticated = await this.isAdminAuthenticated();
-
-    return {
-      artists,
-      albums,
-      photos,
-      pendingPhotos,
-      adminAuthenticated
-    };
-  }
-
-  /**
-   * Import data
-   */
-  async importData(data: { artists: Artist[]; albums?: Album[]; photos?: Photo[]; pendingPhotos?: PendingPhoto[]; adminAuthenticated?: boolean }): Promise<void> {
-    await this.storage.set(this.artistsKey, data.artists, 'archive');
-
-    if (data.albums) {
-      await this.storage.set(this.albumsKey, data.albums, 'archive');
-    }
-
-    if (data.photos) {
-      await this.storage.set(this.photosKey, data.photos, 'archive');
-    }
-
-    if (data.pendingPhotos) {
-      await this.storage.set(this.pendingPhotosKey, data.pendingPhotos, 'archive');
-    }
-
-    if (data.adminAuthenticated) {
-      await this.storage.set(this.adminAuthKey, true, 'hot');
-    }
+  async getApiHealth(): Promise<{ status: string; timestamp: string }> {
+    const response = await this.apiRequest<{ status: string; timestamp: string }>('/health');
+    return response;
   }
 }
 
@@ -520,25 +516,13 @@ let globalDataService: OpenMicDataService | null = null;
 
 export function getGlobalDataService(): OpenMicDataService {
   if (!globalDataService) {
-    const storageService = new PlatformStorageService();
-    globalDataService = new OpenMicDataService(storageService);
+    globalDataService = new OpenMicDataService();
   }
   return globalDataService;
 }
 
 export async function initializeGlobalDataService(): Promise<OpenMicDataService> {
-  const storageService = new PlatformStorageService();
-  await storageService.initialize();
-
-  globalDataService = new OpenMicDataService(storageService);
+  globalDataService = new OpenMicDataService();
   await globalDataService.initialize();
-
-  // Migrate data from cold to archive tier (one-time migration)
-  try {
-    await globalDataService.migrateDataFromColdToArchive();
-  } catch (error) {
-    console.warn('Data migration warning (this is normal if no old data exists):', error);
-  }
-
   return globalDataService;
 }
