@@ -28,6 +28,16 @@ const PhotoManager = () => {
   const [reviewCaption, setReviewCaption] = useState("");
   const [selectedAlbumForApproval, setSelectedAlbumForApproval] = useState<string>("");
 
+  // Date mismatch photos
+  const [dateMismatchPhotos, setDateMismatchPhotos] = useState<Photo[]>([]);
+  const [showDateMismatch, setShowDateMismatch] = useState(false);
+  const [selectedDateMismatchPhoto, setSelectedDateMismatchPhoto] = useState<Photo | null>(null);
+  const [selectedAlbumForDateMismatch, setSelectedAlbumForDateMismatch] = useState<string>("");
+  const [creatingAlbumFromPhoto, setCreatingAlbumFromPhoto] = useState(false);
+  const [newAlbumNameFromPhoto, setNewAlbumNameFromPhoto] = useState("");
+  const [newAlbumDateFromPhoto, setNewAlbumDateFromPhoto] = useState(new Date().toISOString().split('T')[0]);
+  const notificationSound = useRef<HTMLAudioElement | null>(null);
+
   // New album form
   const [showNewAlbumDialog, setShowNewAlbumDialog] = useState(false);
   const [newAlbumName, setNewAlbumName] = useState("");
@@ -42,16 +52,40 @@ const PhotoManager = () => {
   const [photoCaption, setPhotoCaption] = useState("");
 
   useEffect(() => {
+    // Initialize notification sound
+    notificationSound.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZjDkIHW7B9uCqRwwQV67p8bZmHgU3k9nx1Hw1BylxyPLaizsIHGi78+OWSQ0NUqbn8LxuIQU0jdXxy3YmBSaByPLdkjgJFmK38uKnSwwPVbLq9cFoGgYxitHwzHcnBS2EzPPdlj0JGWu97e2XSg0MU6fn8r5rIQc1jdby0Hos');
+    
     const initService = async () => {
       const service = await initializeGlobalDataService();
       setDataService(service);
+      
+      // Set up Socket.io listener for date mismatch photos
+      service.on('photo:date_mismatch', () => {
+        fetchDateMismatchPhotos(service);
+        playNotificationSound();
+        toast.info("📅 New photo needs date review!");
+      });
+      
       await checkAuth(service);
       await fetchAlbums(service);
       await fetchPendingPhotos(service);
+      await fetchDateMismatchPhotos(service);
       await loadApprovalSetting(service);
     };
     initService();
+
+    return () => {
+      if (dataService) {
+        dataService.off('photo:date_mismatch');
+      }
+    };
   }, [navigate]);
+
+  const playNotificationSound = () => {
+    if (notificationSound.current) {
+      notificationSound.current.play().catch(err => console.log('Sound play failed:', err));
+    }
+  };
 
   const loadApprovalSetting = async (service?: OpenMicDataService) => {
     const activeService = service || dataService;
@@ -263,6 +297,81 @@ const PhotoManager = () => {
     }
   };
 
+  const fetchDateMismatchPhotos = async (service?: OpenMicDataService) => {
+    const activeService = service || dataService;
+    if (!activeService) return;
+
+    try {
+      const photos = await activeService.getDateMismatchPhotos();
+      setDateMismatchPhotos(photos);
+    } catch (error) {
+      console.error("Error fetching date mismatch photos:", error);
+      toast.error("Failed to load date mismatch photos");
+    }
+  };
+
+  const assignToExistingAlbum = async (photoId: string, albumId: string) => {
+    if (!dataService) return;
+
+    try {
+      await dataService.assignDateMismatchPhoto(photoId, albumId);
+      toast.success("Photo assigned to album!");
+      await fetchDateMismatchPhotos();
+      await fetchPendingPhotos();
+      setSelectedDateMismatchPhoto(null);
+    } catch (error) {
+      console.error("Error assigning photo:", error);
+      toast.error("Failed to assign photo");
+    }
+  };
+
+  const createAlbumFromPhoto = async (photoId: string) => {
+    if (!dataService || !newAlbumNameFromPhoto.trim()) return;
+
+    try {
+      // Create new album
+      const newAlbum = await dataService.createAlbum({
+        name: newAlbumNameFromPhoto,
+        description: `Auto-created from customer photo`,
+        date: new Date(newAlbumDateFromPhoto),
+        is_active: true,
+        album_type: 'event',
+        allow_customer_uploads: true
+      });
+
+      // Assign photo to new album
+      await dataService.assignDateMismatchPhoto(photoId, newAlbum.id);
+      
+      toast.success(`Album "${newAlbumNameFromPhoto}" created and photo assigned!`);
+      
+      // Reset form
+      setNewAlbumNameFromPhoto("");
+      setNewAlbumDateFromPhoto(new Date().toISOString().split('T')[0]);
+      setCreatingAlbumFromPhoto(false);
+      setSelectedDateMismatchPhoto(null);
+      
+      await fetchDateMismatchPhotos();
+      await fetchAlbums();
+      await fetchPendingPhotos();
+    } catch (error) {
+      console.error("Error creating album:", error);
+      toast.error("Failed to create album");
+    }
+  };
+
+  const deleteDate MismatchPhoto = async (photoId: string) => {
+    if (!dataService) return;
+
+    try {
+      await dataService.deletePhoto(photoId);
+      toast.success("Photo deleted");
+      await fetchDateMismatchPhotos();
+    } catch (error) {
+      console.error("Error deleting photo:", error);
+      toast.error("Failed to delete photo");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -308,10 +417,13 @@ const PhotoManager = () => {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant={showPendingReview ? "default" : "outline"}
-              onClick={() => setShowPendingReview(!showPendingReview)}
+              onClick={() => {
+                setShowPendingReview(!showPendingReview);
+                setShowDateMismatch(false);
+              }}
               className={`${showPendingReview ? "bg-primary hover:bg-primary/90" : "border-border text-foreground hover:bg-card"} relative`}
             >
               <Eye className="w-4 h-4 mr-2" />
@@ -319,6 +431,22 @@ const PhotoManager = () => {
               {pendingPhotos.filter(p => p.status === 'pending').length > 0 && (
                 <span className="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-destructive text-destructive-foreground">
                   {pendingPhotos.filter(p => p.status === 'pending').length}
+                </span>
+              )}
+            </Button>
+            <Button
+              variant={showDateMismatch ? "default" : "outline"}
+              onClick={() => {
+                setShowDateMismatch(!showDateMismatch);
+                setShowPendingReview(false);
+              }}
+              className={`${showDateMismatch ? "bg-orange-600 hover:bg-orange-700" : "border-border text-foreground hover:bg-card"} relative`}
+            >
+              📅
+              <span className="ml-2">Date Review</span>
+              {dateMismatchPhotos.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs font-bold rounded-full bg-destructive text-destructive-foreground">
+                  {dateMismatchPhotos.length}
                 </span>
               )}
             </Button>
@@ -333,7 +461,111 @@ const PhotoManager = () => {
           </div>
         </div>
 
-        {showPendingReview ? (
+        {showDateMismatch ? (
+          /* Date Mismatch Photos Review */
+          <Card>
+            <CardHeader>
+              <CardTitle>📅 Photos Needing Date Assignment</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Photos uploaded when no matching event album was found. Will be deleted after 3 hours if not handled.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {dateMismatchPhotos.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {dateMismatchPhotos.map((photo) => {
+                    const timeRemaining = 3 * 60 * 60 * 1000 - (Date.now() - new Date(photo.created_at).getTime());
+                    const hoursRemaining = Math.floor(timeRemaining / (60 * 60 * 1000));
+                    const minutesRemaining = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+                    
+                    return (
+                      <div key={photo.id} className="bg-card rounded-lg border-2 border-orange-500/50 overflow-hidden hover:shadow-lg transition-shadow">
+                        <div 
+                          className="aspect-square cursor-pointer relative group" 
+                          onClick={() => setSelectedDateMismatchPhoto(photo)}
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.original_name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                              Click to review
+                            </span>
+                          </div>
+                          {timeRemaining > 0 && (
+                            <div className="absolute top-2 right-2 bg-orange-600 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                              {hoursRemaining}h {minutesRemaining}m left
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {photo.uploaded_by || 'Anonymous'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(photo.created_at).toLocaleDateString('nl-NL', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => setSelectedDateMismatchPhoto(photo)}
+                              className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+                            >
+                              📅 Assign
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Photo?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete the photo from {photo.uploaded_by || 'the uploader'}.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteDateMismatchPhoto(photo.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete Photo
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">No date mismatch photos</p>
+                  <p className="text-sm">All photos have proper date assignments!</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : showPendingReview ? (
           /* Pending Photos Review */
           <Card>
             <CardHeader>
@@ -896,6 +1128,190 @@ const PhotoManager = () => {
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Approve & Publish
                   </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Date Mismatch Photo Assignment Dialog */}
+        <Dialog open={!!selectedDateMismatchPhoto} onOpenChange={() => setSelectedDateMismatchPhoto(null)}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>📅 Assign Photo to Album</DialogTitle>
+            </DialogHeader>
+            {selectedDateMismatchPhoto && (
+              <div className="space-y-6">
+                {/* Photo Preview */}
+                <div 
+                  className="w-full max-h-[40vh] cursor-pointer rounded-lg overflow-hidden bg-muted" 
+                  onClick={() => window.open(selectedDateMismatchPhoto.url, '_blank')}
+                >
+                  <img
+                    src={selectedDateMismatchPhoto.url}
+                    alt={selectedDateMismatchPhoto.original_name}
+                    className="w-full h-full object-contain hover:opacity-95 transition-opacity"
+                  />
+                </div>
+
+                {/* Photo Info */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Uploaded by</Label>
+                    <p className="text-foreground font-medium mt-1">
+                      {selectedDateMismatchPhoto.uploaded_by || 'Anonymous'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Upload Time</Label>
+                    <p className="text-foreground font-medium mt-1">
+                      {new Date(selectedDateMismatchPhoto.created_at).toLocaleDateString('nl-NL', {
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Assignment Options */}
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="font-semibold text-foreground">Choose Action:</h4>
+
+                  {/* Option 1: Assign to Existing Album */}
+                  {!creatingAlbumFromPhoto && (
+                    <div className="space-y-3">
+                      <Label htmlFor="album-select">Add to Existing Album</Label>
+                      <div className="flex gap-2">
+                        <select
+                          id="album-select"
+                          value={selectedAlbumForDateMismatch}
+                          onChange={(e) => setSelectedAlbumForDateMismatch(e.target.value)}
+                          className="flex-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Select an album...</option>
+                          {albums
+                            .filter(a => a.album_type === 'event')
+                            .map(album => (
+                              <option key={album.id} value={album.id}>
+                                {album.name} - {new Date(album.date).toLocaleDateString('nl-NL')}
+                              </option>
+                            ))}
+                        </select>
+                        <Button
+                          onClick={() => assignToExistingAlbum(selectedDateMismatchPhoto.id, selectedAlbumForDateMismatch)}
+                          disabled={!selectedAlbumForDateMismatch}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Assign
+                        </Button>
+                      </div>
+
+                      <div className="text-center py-2">
+                        <span className="text-sm text-muted-foreground">OR</span>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => setCreatingAlbumFromPhoto(true)}
+                        className="w-full border-orange-500 text-orange-600 hover:bg-orange-50"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create New Album for This Photo
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Option 2: Create New Album */}
+                  {creatingAlbumFromPhoto && (
+                    <div className="space-y-3 border-2 border-orange-500/50 rounded-lg p-4 bg-orange-50/50">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-semibold text-orange-600">Create New Event Album</h5>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCreatingAlbumFromPhoto(false);
+                            setNewAlbumNameFromPhoto("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      <div>
+                        <Label htmlFor="new-album-name">Album Name *</Label>
+                        <Input
+                          id="new-album-name"
+                          value={newAlbumNameFromPhoto}
+                          onChange={(e) => setNewAlbumNameFromPhoto(e.target.value)}
+                          placeholder="e.g., Open Mic Night - December 2"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="new-album-date">Event Date *</Label>
+                        <Input
+                          id="new-album-date"
+                          type="date"
+                          value={newAlbumDateFromPhoto}
+                          onChange={(e) => setNewAlbumDateFromPhoto(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <Button
+                        onClick={() => createAlbumFromPhoto(selectedDateMismatchPhoto.id)}
+                        disabled={!newAlbumNameFromPhoto.trim()}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Album & Assign Photo
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedDateMismatchPhoto(null);
+                      setCreatingAlbumFromPhoto(false);
+                      setNewAlbumNameFromPhoto("");
+                      setSelectedAlbumForDateMismatch("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Photo
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Photo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the photo from {selectedDateMismatchPhoto.uploaded_by || 'the uploader'}.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            deleteDateMismatchPhoto(selectedDateMismatchPhoto.id);
+                            setSelectedDateMismatchPhoto(null);
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete Photo
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             )}
