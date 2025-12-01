@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, TrendingUp, Clock, User, Calendar } from 'lucide-react';
-import { OpenMicDataService } from '@/services/OpenMicDataService';
+import { OpenMicDataService, initializeGlobalDataService } from '@/services/OpenMicDataService';
 import { toast } from 'sonner';
 
 interface PerformanceRecord {
@@ -39,22 +39,16 @@ export default function PerformanceHistory() {
 
   useEffect(() => {
     const initService = async () => {
-      const token = localStorage.getItem('adminToken');
-      if (!token) {
-        navigate('/admin/login');
-        return;
-      }
-
-      const service = new OpenMicDataService(undefined, token);
+      const service = await initializeGlobalDataService();
+      setDataService(service);
       
-      // Check if token is valid
+      // Check authentication
       const isAuthenticated = await service.isAdminAuthenticated();
       if (!isAuthenticated) {
         navigate('/admin/login');
         return;
       }
 
-      setDataService(service);
       fetchHistory(service);
     };
 
