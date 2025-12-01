@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { LogOut, Trash2, ChevronUp, ChevronDown, Save, Camera, Download, Upload } from "lucide-react";
+import { LogOut, Trash2, ChevronUp, ChevronDown, Save, Camera, Download, Upload, TrendingUp } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -253,7 +253,15 @@ const AdminDashboard = () => {
               className="border-border text-foreground hover:bg-card"
             >
               <Camera className="w-4 h-4 mr-2" />
-              Manage Photos
+              Photos
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/admin/history")}
+              className="border-border text-foreground hover:bg-card"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              History
             </Button>
             <Button
               variant="outline"

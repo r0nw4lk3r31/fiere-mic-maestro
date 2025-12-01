@@ -9,6 +9,7 @@ import CustomerView from "./pages/CustomerView";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import PhotoManager from "./pages/PhotoManager";
+import PerformanceHistory from "./pages/PerformanceHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/photos" element={<PhotoManager />} />
+          <Route path="/admin/history" element={<PerformanceHistory />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
