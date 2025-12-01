@@ -21,6 +21,8 @@ export interface Album {
   description?: string;
   date: string;
   is_active: boolean;
+  album_type: 'event' | 'gallery';
+  allow_customer_uploads: boolean;
   created_at: string;
   updated_at: string;
   photos?: Photo[];

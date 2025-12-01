@@ -33,6 +33,8 @@ const PhotoManager = () => {
   const [newAlbumName, setNewAlbumName] = useState("");
   const [newAlbumDate, setNewAlbumDate] = useState(new Date().toISOString().split('T')[0]);
   const [newAlbumDescription, setNewAlbumDescription] = useState("");
+  const [newAlbumType, setNewAlbumType] = useState<'event' | 'gallery'>('event');
+  const [allowCustomerUploads, setAllowCustomerUploads] = useState(true);
   const [requireApproval, setRequireApproval] = useState(false);
 
   // Photo upload
@@ -112,14 +114,18 @@ const PhotoManager = () => {
       await dataService.createAlbum({
         name: newAlbumName.trim(),
         date: new Date(newAlbumDate).toISOString(),
-        description: newAlbumDescription.trim() || null
+        description: newAlbumDescription.trim() || null,
+        album_type: newAlbumType,
+        allow_customer_uploads: allowCustomerUploads
       });
 
-      toast.success("Album created!");
+      toast.success(`${newAlbumType === 'event' ? 'Event' : 'Gallery'} album created!`);
       setShowNewAlbumDialog(false);
       setNewAlbumName("");
       setNewAlbumDate(new Date().toISOString().split('T')[0]);
       setNewAlbumDescription("");
+      setNewAlbumType('event');
+      setAllowCustomerUploads(true);
       await fetchAlbums();
     } catch (error) {
       console.error("Error creating album:", error);
@@ -443,12 +449,44 @@ const PhotoManager = () => {
                         </DialogHeader>
                         <div className="space-y-4">
                           <div>
+                            <Label htmlFor="albumType">Album Type</Label>
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                type="button"
+                                variant={newAlbumType === 'event' ? 'default' : 'outline'}
+                                onClick={() => {
+                                  setNewAlbumType('event');
+                                  setAllowCustomerUploads(true);
+                                }}
+                                className="flex-1"
+                              >
+                                🎤 Event Album
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={newAlbumType === 'gallery' ? 'default' : 'outline'}
+                                onClick={() => {
+                                  setNewAlbumType('gallery');
+                                  setAllowCustomerUploads(false);
+                                }}
+                                className="flex-1"
+                              >
+                                🖼️ Gallery
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {newAlbumType === 'event' 
+                                ? 'Tied to a specific date, customers can upload photos'
+                                : 'Admin-only collection, no customer uploads'}
+                            </p>
+                          </div>
+                          <div>
                             <Label htmlFor="albumName">Album Name</Label>
                             <Input
                               id="albumName"
                               value={newAlbumName}
                               onChange={(e) => setNewAlbumName(e.target.value)}
-                              placeholder="e.g., Open Mic Night - November 2025"
+                              placeholder={newAlbumType === 'event' ? 'e.g., Open Mic Night - November 2025' : 'e.g., Best Performances 2025'}
                             />
                           </div>
                           <div>
@@ -470,6 +508,18 @@ const PhotoManager = () => {
                               rows={3}
                             />
                           </div>
+                          {newAlbumType === 'event' && (
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={allowCustomerUploads}
+                                onCheckedChange={setAllowCustomerUploads}
+                                id="allowUploads"
+                              />
+                              <Label htmlFor="allowUploads" className="cursor-pointer">
+                                Allow customer uploads
+                              </Label>
+                            </div>
+                          )}
                           <div className="flex gap-2 justify-end">
                             <Button
                               variant="outline"
@@ -500,13 +550,18 @@ const PhotoManager = () => {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1" onClick={() => setSelectedAlbum(album)}>
-                            <h4 className="font-medium text-foreground">{album.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{album.album_type === 'event' ? '🎤' : '🖼️'}</span>
+                              <h4 className="font-medium text-foreground">{album.name}</h4>
+                            </div>
                             <p className="text-sm text-muted-foreground">
                               {new Date(album.date).toLocaleDateString('nl-NL')}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {album.photos?.length || 0} photos
-                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{album.photos?.length || 0} photos</span>
+                              {album.album_type === 'gallery' && <span className="text-xs">• Gallery</span>}
+                              {album.album_type === 'event' && !album.allow_customer_uploads && <span className="text-xs">• No uploads</span>}
+                            </div>
                           </div>
                           <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
