@@ -33,12 +33,13 @@ const app = express();
 const server = createServer(app);
 
 // Allow multiple frontend origins (local dev + production)
-const allowedOrigins = [
+// Use wildcard pattern for Vercel preview deployments
+const allowedOrigins: (string | RegExp)[] = [
   "http://localhost:8080",
-  "https://fiere-mic-maestro-fjmwqu4s4-art-ais-projects.vercel.app",
-  "https://fiere-mic-maestro-8jll1fp84-art-ais-projects.vercel.app",
+  "http://localhost:8081", // Vite alternate port
+  /^https:\/\/fiere-mic-maestro-.*\.vercel\.app$/, // All Vercel deployments
   process.env.FRONTEND_URL
-].filter(Boolean) as string[];
+].filter(Boolean);
 
 const io = new Server(server, {
   cors: {
