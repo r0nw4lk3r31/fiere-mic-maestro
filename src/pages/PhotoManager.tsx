@@ -347,77 +347,97 @@ const PhotoManager = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {pendingPhotos
                     .filter(p => p.status === 'pending')
-                    .map((pendingPhoto) => (
-                      <div key={pendingPhoto.id} className="bg-card rounded-lg border border-border p-4">
-                        <div className="aspect-square mb-4 cursor-pointer" onClick={() => window.open(pendingPhoto.url, '_blank')}>
-                          <img
-                            src={pendingPhoto.url}
-                            alt={pendingPhoto.original_name}
-                            className="w-full h-full object-cover rounded-lg hover:opacity-90 transition-opacity"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">
-                              Uploaded by: {pendingPhoto.uploaded_by || 'Anonymous'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(pendingPhoto.created_at).toLocaleDateString('nl-NL', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
+                    .map((pendingPhoto) => {
+                      const photoAlbum = albums.find(a => a.id === pendingPhoto.album_id);
+                      return (
+                        <div key={pendingPhoto.id} className="bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow">
+                          <div 
+                            className="aspect-square cursor-pointer relative group" 
+                            onClick={() => window.open(pendingPhoto.url, '_blank')}
+                          >
+                            <img
+                              src={pendingPhoto.url}
+                              alt={pendingPhoto.original_name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                              <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                                Click to enlarge
+                              </span>
+                            </div>
                           </div>
-                          {pendingPhoto.uploaded_by && !pendingPhoto.uploaded_by.match(/^\d+\./) && (
-                            <p className="text-sm text-muted-foreground italic">
-                              Uploader: {pendingPhoto.uploaded_by}
-                            </p>
-                          )}
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => setSelectedPendingPhoto(pendingPhoto)}
-                              className="flex-1 bg-primary hover:bg-primary/90"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Review
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Reject Photo?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will reject the photo from {pendingPhoto.uploaded_by || 'the uploader'}.
-                                    The photo will be marked as rejected and won't be published.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => rejectPendingPhoto(pendingPhoto.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          <div className="p-4 space-y-3">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">
+                                {pendingPhoto.uploaded_by || 'Anonymous'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(pendingPhoto.created_at).toLocaleDateString('nl-NL', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            {photoAlbum && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <span>{photoAlbum.album_type === 'event' ? '🎤' : '🖼️'}</span>
+                                <span className="truncate">{photoAlbum.name}</span>
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  if (!dataService) return;
+                                  try {
+                                    await dataService.approvePendingPhoto(pendingPhoto.id);
+                                    await fetchPendingPhotos(dataService);
+                                    toast.success("Photo approved!");
+                                  } catch (error) {
+                                    toast.error("Failed to approve photo");
+                                  }
+                                }}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
                                   >
-                                    Reject Photo
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                                    <XCircle className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Reject Photo?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will reject the photo from {pendingPhoto.uploaded_by || 'the uploader'}.
+                                      The photo will be marked as rejected and won't be published.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => rejectPendingPhoto(pendingPhoto.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Reject Photo
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
@@ -784,52 +804,65 @@ const PhotoManager = () => {
 
         {/* Photo Approval Dialog */}
         <Dialog open={!!selectedPendingPhoto} onOpenChange={() => setSelectedPendingPhoto(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Review Photo for Publication</DialogTitle>
+              <DialogTitle>Review Photo</DialogTitle>
             </DialogHeader>
             {selectedPendingPhoto && (
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="flex-1 cursor-pointer" onClick={() => window.open(selectedPendingPhoto.url, '_blank')}>
-                    <img
-                      src={selectedPendingPhoto.url}
-                      alt={selectedPendingPhoto.original_name}
-                      className="w-full h-64 object-cover rounded-lg hover:opacity-90 transition-opacity"
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <Label className="text-sm font-medium">Uploaded by</Label>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedPendingPhoto.uploaded_by || 'Anonymous'}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Uploaded</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(selectedPendingPhoto.created_at).toLocaleString('nl-NL')}
-                      </p>
-                    </div>
-                  </div>
+              <div className="space-y-6">
+                {/* Large Photo Preview */}
+                <div 
+                  className="w-full max-h-[60vh] cursor-pointer rounded-lg overflow-hidden bg-muted" 
+                  onClick={() => window.open(selectedPendingPhoto.url, '_blank')}
+                >
+                  <img
+                    src={selectedPendingPhoto.url}
+                    alt={selectedPendingPhoto.original_name}
+                    className="w-full h-full object-contain hover:opacity-95 transition-opacity"
+                  />
                 </div>
 
-                <div className="space-y-4">
+                {/* Photo Details */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <Label>Album</Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {albums.find(a => a.id === selectedPendingPhoto.album_id)?.name || 'Unknown Album'}
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Uploaded by</Label>
+                    <p className="text-foreground font-medium mt-1">
+                      {selectedPendingPhoto.uploaded_by || 'Anonymous'}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      This photo was uploaded to this album by the customer
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Date</Label>
+                    <p className="text-foreground font-medium mt-1">
+                      {new Date(selectedPendingPhoto.created_at).toLocaleDateString('nl-NL', {
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Album</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span>{albums.find(a => a.id === selectedPendingPhoto.album_id)?.album_type === 'event' ? '🎤' : '🖼️'}</span>
+                      <p className="text-foreground font-medium">
+                        {albums.find(a => a.id === selectedPendingPhoto.album_id)?.name || 'Unknown Album'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-end">
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedPendingPhoto(null)}
+                  >
+                    Cancel
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline">
+                      <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
                         <XCircle className="w-4 h-4 mr-2" />
                         Reject
                       </Button>
@@ -838,7 +871,8 @@ const PhotoManager = () => {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Reject Photo?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will reject the photo. It will remain in the system but won't be visible to customers.
+                          This will reject the photo from {selectedPendingPhoto.uploaded_by || 'the uploader'}. 
+                          It won't be visible to customers.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -857,7 +891,7 @@ const PhotoManager = () => {
                   </AlertDialog>
                   <Button
                     onClick={approvePendingPhoto}
-                    className="bg-primary hover:bg-primary/90"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Approve & Publish

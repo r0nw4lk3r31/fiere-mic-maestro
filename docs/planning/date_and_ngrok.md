@@ -36,12 +36,12 @@
 ### ✅ 2. Fix Photo Delete (NOT WORKING) ⏱️ 5 min
 **Problem:** Delete button doesn't work for any photos
 
-**Status:** ⚠️ NEEDS TESTING
+**Status:** ✅ COMPLETED
 
 **Tasks:**
 - [x] Verify `AlertDialog` structure in `PhotoManager.tsx` - looks correct
 - [x] Verify delete API endpoint exists - confirmed working
-- [ ] Test delete functionality in browser
+- [x] Test delete functionality in browser - WORKS! (needs page refresh to see update)
 
 **Files verified:**
 - `src/pages/PhotoManager.tsx` - AlertDialogAction correctly wired
@@ -79,72 +79,71 @@
 
 ## 🎯 PRIORITY 2: Album Type System ⏱️ 45 min
 
-### 4. Database Schema Updates
+### ✅ 4. Database Schema Updates
 **Add album types and customer upload control**
 
-**Status:** ⬜ Not Started
+**Status:** ✅ COMPLETED
 
 **Tasks:**
-- [ ] Create migration: Add `album_type` column ('event' | 'gallery')
-- [ ] Create migration: Add `allow_customer_uploads` boolean
-- [ ] Update TypeScript interfaces
-- [ ] Run migrations
+- [x] Create migration: Add `album_type` column ('event' | 'gallery')
+- [x] Create migration: Add `allow_customer_uploads` boolean
+- [x] Update TypeScript interfaces
+- [x] Run migrations
 
-**Files to change:**
-- `backend/src/models/schema.ts`
-- `backend/src/scripts/add-album-types.ts` (new migration)
+**Files changed:**
+- `backend/src/models/schema.ts` - Added album_type and allow_customer_uploads columns
+- `backend/src/scripts/add-album-types.sql` - Migration SQL
 
 ---
 
-### 5. Backend: Album Type Logic
+### ✅ 5. Backend: Album Type Logic
 **Implement event vs gallery album behavior**
 
-**Status:** ⬜ Not Started
+**Status:** ✅ COMPLETED
 
 **Tasks:**
-- [ ] Update `createAlbum` controller to accept `album_type`
-- [ ] Update `getAlbums` to filter by type for customers
-- [ ] Add `getTodaysEventAlbum` endpoint
-- [ ] Update album update logic
+- [x] Update `createAlbum` controller to accept `album_type`
+- [x] Update `getAlbums` to filter by type for customers
+- [x] Add `getTodaysEventAlbum` endpoint
+- [x] Update album update logic
 
-**Files to change:**
-- `backend/src/controllers/albums.ts`
-- `backend/src/routes/albums.ts`
+**Files changed:**
+- `backend/src/controllers/albums.ts` - Added album_type support, getTodaysEventAlbum function
+- `backend/src/routes/albums.ts` - Added /today-event route
 
 ---
 
-### 6. Frontend: Smart Album Selection
+### ✅ 6. Frontend: Smart Album Selection
 **Automatic album selection for customers**
 
-**Status:** ⬜ Not Started
+**Status:** ✅ COMPLETED
 
 **Tasks:**
-- [ ] Update `CustomerView.tsx` to auto-select today's event album
-- [ ] Remove manual album dropdown (if today's event exists)
-- [ ] Show message if no event album exists for today
-- [ ] Filter gallery albums from customer upload options
+- [x] Update `CustomerView.tsx` to auto-select today's event album
+- [x] Remove manual album dropdown (no dropdown needed!)
+- [x] Show message if no event album exists for today
+- [x] Filter gallery albums from customer upload options
 
-**Files to change:**
-- `src/pages/CustomerView.tsx`
-- `src/services/OpenMicDataService.ts`
+**Files changed:**
+- `src/pages/CustomerView.tsx` - Uses getTodaysEventAlbum, auto-selects event album
+- `src/services/OpenMicDataService.ts` - Added getTodaysEventAlbum method
 
 ---
 
-### 7. Admin: Album Type Management
+### ✅ 7. Admin: Album Type Management
 **UI for creating event vs gallery albums**
 
-**Status:** ⬜ Not Started
+**Status:** ✅ COMPLETED
 
 **Tasks:**
-- [ ] Add album type selector to create album form
-- [ ] Add toggle for "Allow Customer Uploads"
-- [ ] Show all albums regardless of type/status (admin view)
-- [ ] Add visual indicators for album type
-- [ ] Gallery albums: Admin upload only
+- [x] Add album type selector to create album form (🎤 Event / 🖼️ Gallery)
+- [x] Add toggle for "Allow Customer Uploads"
+- [x] Show all albums regardless of type/status (admin view)
+- [x] Add visual indicators for album type (emojis + labels)
+- [x] Gallery albums: Admin upload only
 
-**Files to change:**
-- `src/pages/PhotoManager.tsx`
-- `src/pages/AdminDashboard.tsx` (if albums managed there)
+**Files changed:**
+- `src/pages/PhotoManager.tsx` - Full album type UI with visual indicators
 
 ---
 
@@ -301,14 +300,14 @@ Total: 45 minutes → IMAGES WORKING!
 
 ### **This Week (Core Features):**
 ```
-5. Database: Album Types      [15 min]
-6. Backend: Album Logic       [20 min]
-7. Frontend: Smart Selection  [15 min]
-8. Admin: Album Management    [15 min]
-9. Fix Pending Photo Review   [20 min]
-10. Test Complete Flow        [15 min]
+5. Database: Album Types      [15 min] ✅ DONE
+6. Backend: Album Logic       [20 min] ✅ DONE
+7. Frontend: Smart Selection  [15 min] ✅ DONE
+8. Admin: Album Management    [15 min] ✅ DONE
+9. Fix Pending Photo Review   [20 min] ⏸️ NEXT
+10. Test Complete Flow        [15 min] ⏸️ NEXT
 
-Total: ~2 hours
+Total: ~2 hours → Album System COMPLETE!
 ```
 
 ### **Next Week (Polish):**
@@ -327,12 +326,12 @@ Total: ~1.5 hours
 ## 🎯 Feature Checklist
 
 ### **Album System:**
-- [ ] Event albums (tied to specific date)
-- [ ] Gallery albums (admin-only collections)
-- [ ] Auto-select today's event album for customers
-- [ ] Gallery albums visible/hidden toggle
-- [ ] Admin sees all albums always
-- [ ] Date validation for uploads
+- [x] Event albums (tied to specific date)
+- [x] Gallery albums (admin-only collections)
+- [x] Auto-select today's event album for customers
+- [x] Gallery albums visible/hidden toggle
+- [x] Admin sees all albums always
+- [ ] Date validation for uploads (getTodaysEventAlbum handles this)
 
 ### **Photo Upload:**
 - [ ] Customer uploads to today's event only
@@ -457,7 +456,7 @@ ngrok http 3001
 - [x] Admin dashboard
 
 ---
-**Last Action:** Fixed CORS headers for cross-origin image loading - photos now working on both localhost and Vercel!  
+**Last Action:** Implemented complete album type system (event vs gallery) with smart customer uploads!  
 **Production URL:** https://fiere-mic-maestro-i024hsjsx-art-ais-projects.vercel.app  
-**Next Up:** Test photo delete, then implement album type system (Priority 2)84-art-ais-projects.vercel.app  
+**Next Up:** Priority 3 - Photo Review Workflow improvements84-art-ais-projects.vercel.app  
 **Next Up:** Implement album type system (Priority 2)
