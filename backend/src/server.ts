@@ -31,9 +31,18 @@ import { setupSocketHandlers } from './services/socketService';
 
 const app = express();
 const server = createServer(app);
+
+// Allow multiple frontend origins (local dev + production)
+const allowedOrigins = [
+  "http://localhost:8080",
+  "https://fiere-mic-maestro-fjmwqu4s4-art-ais-projects.vercel.app",
+  "https://fiere-mic-maestro-8jll1fp84-art-ais-projects.vercel.app",
+  process.env.FRONTEND_URL
+].filter(Boolean) as string[];
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:8080",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
@@ -44,7 +53,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:8080",
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));

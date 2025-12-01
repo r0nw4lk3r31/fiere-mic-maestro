@@ -19,7 +19,7 @@ ngrok creates a secure tunnel from a public URL to your local server, allowing c
 
 ### 2. Configure ngrok
 ```bash
-ngrok config add-authtoken YOUR_TOKEN_HERE
+ngrok config add-authtoken 36F7ox0aRLLy8cHELKNPcd8IV58_aiUuaoLM9Tp56jShuk6K
 ```
 
 Replace `YOUR_TOKEN_HERE` with the token from the dashboard.

@@ -288,10 +288,10 @@
 ```
 1. Fix Photo Display          [5 min]  ✅ DONE
 2. Fix Photo Delete           [5 min]  ⚠️ NEEDS TESTING  
-3. Setup ngrok                [10 min] ✅ DONE (needs user authtoken)
-4. Test with mobile data      [5 min]  ⬜ PENDING
+3. Setup ngrok + Vercel       [20 min] ✅ DONE
+4. Test with mobile data      [5 min]  ✅ DONE
 
-Total: 25 minutes → 15 minutes completed
+Total: 35 minutes → ALL COMPLETE
 ```
 
 ### **This Week (Core Features):**
@@ -430,7 +430,7 @@ ngrok http 3001
 
 1. ~~**Photo Display:** Images show as broken - need API_URL prefix~~ ✅ FIXED
 2. **Photo Delete:** Delete button needs testing ⚠️
-3. ~~**Network Access:** Only works on local WiFi, not mobile data~~ ✅ FIXED (ngrok ready)
+3. ~~**Network Access:** Only works on local WiFi, not mobile data~~ ✅ FIXED (Vercel + ngrok)
 4. **Album Selection:** Manual dropdown confusing for customers ⚠️
 5. **Date Display:** "Invalid Date" showing in some places ⚠️
 
@@ -452,5 +452,6 @@ ngrok http 3001
 
 ---
 
-**Last Action:** Added approval setting migration  
-**Next Up:** Fix photo display issue
+**Last Action:** Deployed to Vercel with ngrok backend  
+**Production URL:** https://fiere-mic-maestro-8jll1fp84-art-ais-projects.vercel.app  
+**Next Up:** Implement album type system (Priority 2)

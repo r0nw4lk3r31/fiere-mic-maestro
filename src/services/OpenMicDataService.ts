@@ -146,6 +146,7 @@ export class OpenMicDataService {
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true', // Skip ngrok interstitial page
       ...options.headers
     };
 
