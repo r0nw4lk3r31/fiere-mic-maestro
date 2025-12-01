@@ -1,0 +1,57 @@
+import { pgTable, text, integer, timestamp, uuid, boolean } from 'drizzle-orm/pg-core';
+
+// Artists table
+export const artists = pgTable('artists', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  song_description: text('song_description'),
+  preferred_time: text('preferred_time'),
+  performance_order: integer('performance_order').default(0),
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});
+
+// Albums table
+export const albums = pgTable('albums', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  date: timestamp('date').notNull().defaultNow(), // Date of the event/open mic night
+  is_active: boolean('is_active').default(true),
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});
+
+// Photos table
+export const photos = pgTable('photos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  album_id: uuid('album_id').references(() => albums.id, { onDelete: 'cascade' }),
+  filename: text('filename').notNull(),
+  original_name: text('original_name').notNull(),
+  mime_type: text('mime_type').notNull(),
+  size: integer('size').notNull(),
+  url: text('url').notNull(),
+  is_approved: boolean('is_approved').default(false),
+  is_visible: boolean('is_visible').default(true), // Admin can hide specific photos
+  uploaded_by: text('uploaded_by'), // IP address or identifier
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});
+
+// Admin users table
+export const adminUsers = pgTable('admin_users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  username: text('username').notNull().unique(),
+  password_hash: text('password_hash').notNull(),
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});
+
+// Settings table for app configuration
+export const settings = pgTable('settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  value: text('value').notNull(),
+  created_at: timestamp('created_at').defaultNow(),
+  updated_at: timestamp('updated_at').defaultNow(),
+});
