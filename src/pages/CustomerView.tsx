@@ -134,7 +134,18 @@ const CustomerView = () => {
       const eventAlbum = await dataService.getTodaysEventAlbum();
       
       if (!eventAlbum) {
-        toast.error("No event album available for uploads right now. Check back later!");
+        // No matching album for today - upload as date mismatch
+        toast.success("Photo uploaded! Admins will review and assign it to the correct event. Thank you! 🎉");
+        
+        // Upload to a special "date mismatch" handling (we'll create this endpoint)
+        await dataService.uploadDateMismatchPhoto(selectedFile, uploaderName.trim(), photoCaption.trim() || undefined);
+        
+        // Reset form
+        setSelectedFile(null);
+        setUploaderName("");
+        setUploaderEmail("");
+        setPhotoCaption("");
+        setShowUploadForm(false);
         setUploading(false);
         return;
       }

@@ -151,6 +151,121 @@ export const uploadPhoto = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+export const uploadDateMismatchPhoto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { uploaded_by } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return next(createApiError('No file uploaded', 400));
+    }
+
+    // Generate unique filename
+    const fileExtension = path.extname(file.originalname);
+    const filename = `${randomUUID()}${fileExtension}`;
+    const fileUrl = `/uploads/${filename}`;
+
+    // Move file to uploads directory
+    const uploadPath = path.join(UPLOAD_DIR, filename);
+    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    await fs.writeFile(uploadPath, file.buffer);
+
+    // Save to database with date_mismatch status and null album_id for now
+    const result = await db
+      .insert(photos)
+      .values({
+        album_id: null, // Will be assigned by admin
+        filename,
+        original_name: file.originalname,
+        mime_type: file.mimetype,
+        size: file.size,
+        url: fileUrl,
+        is_approved: false,
+        review_status: 'date_mismatch',
+        uploaded_by: uploaded_by || req.ip || 'unknown'
+      })
+      .returning();
+
+    const newPhoto = result[0];
+
+    // Emit real-time update for admin notification
+    emitToPhotos('photo:date_mismatch', newPhoto);
+
+    res.status(201).json({
+      success: true,
+      data: newPhoto
+    });
+  } catch (error) {
+    next(createApiError('Failed to upload photo', 500));
+  }
+};
+
+export const getDateMismatchPhotos = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db
+      .select()
+      .from(photos)
+      .where(eq(photos.review_status, 'date_mismatch'))
+      .orderBy(desc(photos.created_at));
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    next(createApiError('Failed to fetch date mismatch photos', 500));
+  }
+};
+
+export const assignDateMismatchPhoto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { album_id } = req.body;
+
+    if (!album_id) {
+      return next(createApiError('Album ID is required', 400));
+    }
+
+    // Verify album exists
+    const albumExists = await db
+      .select()
+      .from(albums)
+      .where(eq(albums.id, album_id))
+      .limit(1);
+
+    if (albumExists.length === 0) {
+      return next(createApiError('Album not found', 404));
+    }
+
+    // Update photo
+    const result = await db
+      .update(photos)
+      .set({
+        album_id,
+        review_status: 'pending',
+        updated_at: new Date()
+      })
+      .where(eq(photos.id, id))
+      .returning();
+
+    if (result.length === 0) {
+      return next(createApiError('Photo not found', 404));
+    }
+
+    const updatedPhoto = result[0];
+
+    // Emit real-time update
+    emitToPhotos('photo:updated', updatedPhoto);
+
+    res.json({
+      success: true,
+      data: updatedPhoto
+    });
+  } catch (error) {
+    next(createApiError('Failed to assign photo to album', 500));
+  }
+};
+
 export const updatePhoto = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;

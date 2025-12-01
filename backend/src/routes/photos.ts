@@ -4,6 +4,9 @@ import {
   getPhotos,
   getPhoto,
   uploadPhoto,
+  uploadDateMismatchPhoto,
+  getDateMismatchPhotos,
+  assignDateMismatchPhoto,
   updatePhoto,
   approvePhoto,
   deletePhoto
@@ -35,6 +38,15 @@ router.get('/:id', getPhoto);
 
 // POST /api/photos - Upload new photo
 router.post('/', upload.single('photo'), uploadPhoto);
+
+// POST /api/photos/date-mismatch - Upload photo with date mismatch
+router.post('/date-mismatch', upload.single('photo'), uploadDateMismatchPhoto);
+
+// GET /api/photos/date-mismatch/list - Get all date mismatch photos
+router.get('/date-mismatch/list', getDateMismatchPhotos);
+
+// PUT /api/photos/:id/assign - Assign date mismatch photo to album
+router.put('/:id/assign', assignDateMismatchPhoto);
 
 // PUT /api/photos/:id - Update photo (visibility, approval, etc.)
 router.put('/:id', updatePhoto);

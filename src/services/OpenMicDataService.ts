@@ -395,6 +395,53 @@ export class OpenMicDataService {
     });
   }
 
+  /**
+   * Upload photo when no date match (date mismatch queue)
+   */
+  async uploadDateMismatchPhoto(file: File, uploaderName: string, caption?: string): Promise<Photo> {
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('uploaded_by', uploaderName);
+    if (caption) {
+      formData.append('caption', caption);
+    }
+
+    const response = await fetch(`${this.apiUrl}/api/photos/date-mismatch`, {
+      method: 'POST',
+      headers: this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {},
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  /**
+   * Get all date mismatch photos (admin only)
+   */
+  async getDateMismatchPhotos(): Promise<Photo[]> {
+    const response = await this.apiRequest<ApiResponse<Photo[]>>('/api/photos/date-mismatch/list');
+    return (response.data || []).map(p => ({
+      ...p,
+      url: p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`
+    }));
+  }
+
+  /**
+   * Assign date mismatch photo to an album
+   */
+  async assignDateMismatchPhoto(photoId: string, albumId: string): Promise<void> {
+    await this.apiRequest(`/api/photos/${photoId}/assign`, {
+      method: 'PUT',
+      body: JSON.stringify({ album_id: albumId })
+    });
+  }
+
   // Pending Photo Management (Legacy - now handled by backend)
 
   /**

@@ -28,6 +28,7 @@ import adminRoutes from './routes/admin';
 import settingsRoutes from './routes/settings';
 import { errorHandler } from './middleware/errorHandler';
 import { setupSocketHandlers } from './services/socketService';
+import { startCleanupJob } from './services/cleanupService';
 
 const app = express();
 const server = createServer(app);
@@ -90,11 +91,15 @@ app.use(errorHandler);
 // Socket.io setup
 setupSocketHandlers(io);
 
+// Start cleanup job for date mismatch photos (deletes after 3 hours)
+startCleanupJob();
+
 // Start server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io enabled`);
   console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:8080"}`);
+  console.log(`🧹 Cleanup job started (date mismatch photos deleted after 3 hours)`);
 });
 
 // Graceful shutdown

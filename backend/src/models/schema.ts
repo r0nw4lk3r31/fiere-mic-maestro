@@ -36,6 +36,7 @@ export const photos = pgTable('photos', {
   is_approved: boolean('is_approved').default(false),
   is_visible: boolean('is_visible').default(true), // Admin can hide specific photos
   uploaded_by: text('uploaded_by'), // IP address or identifier
+  review_status: text('review_status').default('pending'), // 'pending', 'approved', 'rejected', 'date_mismatch'
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
 });
