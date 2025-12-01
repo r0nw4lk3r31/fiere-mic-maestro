@@ -141,31 +141,40 @@ export const deleteAlbum = async (req: Request, res: Response, next: NextFunctio
 
 export const getTodaysEventAlbum = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Get most recent active event album that allows customer uploads
+    // Get today's date (midnight for comparison)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get active event albums that allow customer uploads
     const result = await db
       .select()
       .from(albums)
+      .where(eq(albums.album_type, 'event'))
       .orderBy(desc(albums.date))
-      .limit(10);
+      .limit(20);
 
-    // Filter for event albums that allow customer uploads
-    const eventAlbums = result.filter(album => 
-      album.album_type === 'event' && 
-      album.is_active && 
-      album.allow_customer_uploads
-    );
+    // Filter for albums matching today's date
+    const todaysEventAlbums = result.filter(album => {
+      if (!album.is_active || !album.allow_customer_uploads) return false;
+      
+      const albumDate = new Date(album.date);
+      albumDate.setHours(0, 0, 0, 0);
+      
+      // Check if album date matches today
+      return albumDate.getTime() === today.getTime();
+    });
 
-    if (eventAlbums.length === 0) {
+    if (todaysEventAlbums.length === 0) {
       return res.json({
         success: true,
         data: null,
-        message: 'No event album available for uploads'
+        message: 'No event album available for today. Please check back on the event date!'
       });
     }
 
     res.json({
       success: true,
-      data: eventAlbums[0]
+      data: todaysEventAlbums[0]
     });
   } catch (error) {
     next(createApiError('Failed to fetch today\'s event album', 500));

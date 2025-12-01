@@ -353,7 +353,7 @@ const PhotoManager = () => {
                         <div key={pendingPhoto.id} className="bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow">
                           <div 
                             className="aspect-square cursor-pointer relative group" 
-                            onClick={() => window.open(pendingPhoto.url, '_blank')}
+                            onClick={() => setSelectedPendingPhoto(pendingPhoto)}
                           >
                             <img
                               src={pendingPhoto.url}
@@ -362,7 +362,7 @@ const PhotoManager = () => {
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                               <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
-                                Click to enlarge
+                                Click to view full size
                               </span>
                             </div>
                           </div>
