@@ -48,7 +48,7 @@ export const getAlbum = async (req: Request, res: Response, next: NextFunction) 
 
 export const createAlbum = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, description, date }: CreateAlbumRequest = req.body;
+    const { name, description, date, album_type, allow_customer_uploads }: CreateAlbumRequest = req.body;
 
     if (!name) {
       return next(createApiError('Name is required', 400));
@@ -60,7 +60,9 @@ export const createAlbum = async (req: Request, res: Response, next: NextFunctio
         name,
         description,
         date: date ? new Date(date) : new Date(),
-        is_active: true
+        is_active: true,
+        album_type: album_type || 'event',
+        allow_customer_uploads: allow_customer_uploads !== undefined ? allow_customer_uploads : true
       })
       .returning();
 
@@ -134,5 +136,38 @@ export const deleteAlbum = async (req: Request, res: Response, next: NextFunctio
     });
   } catch (error) {
     next(createApiError('Failed to delete album', 500));
+  }
+};
+
+export const getTodaysEventAlbum = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Get most recent active event album that allows customer uploads
+    const result = await db
+      .select()
+      .from(albums)
+      .orderBy(desc(albums.date))
+      .limit(10);
+
+    // Filter for event albums that allow customer uploads
+    const eventAlbums = result.filter(album => 
+      album.album_type === 'event' && 
+      album.is_active && 
+      album.allow_customer_uploads
+    );
+
+    if (eventAlbums.length === 0) {
+      return res.json({
+        success: true,
+        data: null,
+        message: 'No event album available for uploads'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: eventAlbums[0]
+    });
+  } catch (error) {
+    next(createApiError('Failed to fetch today\'s event album', 500));
   }
 };

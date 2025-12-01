@@ -18,6 +18,8 @@ export const albums = pgTable('albums', {
   description: text('description'),
   date: timestamp('date').notNull().defaultNow(), // Date of the event/open mic night
   is_active: boolean('is_active').default(true),
+  album_type: text('album_type').default('event'), // 'event' or 'gallery'
+  allow_customer_uploads: boolean('allow_customer_uploads').default(true),
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
 });

@@ -47,7 +47,10 @@ export interface Album {
   id: string;
   name: string;
   description?: string;
+  date: Date;
   is_active: boolean;
+  album_type: 'event' | 'gallery';
+  allow_customer_uploads: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -56,6 +59,8 @@ export interface CreateAlbumRequest {
   name: string;
   description?: string;
   date?: string;
+  album_type?: 'event' | 'gallery';
+  allow_customer_uploads?: boolean;
 }
 
 // Admin types
