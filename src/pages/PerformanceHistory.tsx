@@ -38,15 +38,27 @@ export default function PerformanceHistory() {
   const [totalPerformances, setTotalPerformances] = useState(0);
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
+    const initService = async () => {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        navigate('/admin/login');
+        return;
+      }
 
-    const service = new OpenMicDataService(undefined, token);
-    setDataService(service);
-    fetchHistory(service);
+      const service = new OpenMicDataService(undefined, token);
+      
+      // Check if token is valid
+      const isAuthenticated = await service.isAdminAuthenticated();
+      if (!isAuthenticated) {
+        navigate('/admin/login');
+        return;
+      }
+
+      setDataService(service);
+      fetchHistory(service);
+    };
+
+    initService();
   }, [navigate, limit]);
 
   const fetchHistory = async (service: OpenMicDataService) => {
