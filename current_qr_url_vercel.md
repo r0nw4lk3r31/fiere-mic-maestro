@@ -1,1 +1,1 @@
-https://fiere-mic-maestro-bn5yf2f2z-art-ais-projects.vercel.app
+https://fiere-mic-maestro-jdv4ykvqz-art-ais-projects.vercel.app
