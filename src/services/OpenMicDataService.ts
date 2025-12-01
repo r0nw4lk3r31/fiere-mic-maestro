@@ -268,11 +268,17 @@ export class OpenMicDataService {
       const photosResponse = await this.apiRequest<ApiResponse<Photo[]>>(`/api/photos?album_id=${id}`, {
         method: 'GET'
       });
-      album.photos = (photosResponse.data || []).map(p => ({
-        ...p,
-        // Ensure photo URLs include the full API URL
-        url: p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`
-      }));
+      album.photos = (photosResponse.data || []).map(p => {
+        let photoUrl = p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`;
+        // Add ngrok-skip-browser-warning as query param for image loading
+        if (photoUrl.includes('ngrok')) {
+          photoUrl += (photoUrl.includes('?') ? '&' : '?') + 'ngrok-skip-browser-warning=true';
+        }
+        return {
+          ...p,
+          url: photoUrl
+        };
+      });
 
       return album;
     } catch (error) {
