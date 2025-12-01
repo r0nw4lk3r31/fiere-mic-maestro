@@ -96,10 +96,19 @@ startCleanupJob();
 
 // Start server
 server.listen(PORT, () => {
+  console.log('\n');
+  console.log('╔═══════════════════════════════════════╗');
+  console.log('║                                       ║');
+  console.log('║          🎤  OPEN MIC  🎸           ║');
+  console.log('║         Fiere Mic Maestro             ║');
+  console.log('║                                       ║');
+  console.log('╚═══════════════════════════════════════╝');
+  console.log('\n');
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io enabled`);
   console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:8080"}`);
   console.log(`🧹 Cleanup job started (date mismatch photos deleted after 3 hours)`);
+  console.log('\n');
 });
 
 // Graceful shutdown
