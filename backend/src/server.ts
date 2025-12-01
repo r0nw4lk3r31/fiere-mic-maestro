@@ -40,7 +40,7 @@ const allowedOrigins: (string | RegExp)[] = [
   "http://localhost:8081", // Vite alternate port
   /^https:\/\/fiere-mic-maestro-.*\.vercel\.app$/, // All Vercel deployments
   process.env.FRONTEND_URL
-].filter(Boolean);
+].filter((origin): origin is string | RegExp => origin !== undefined);
 
 const io = new Server(server, {
   cors: {

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../models';
 import { photos, albums, settings } from '../models/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, ne } from 'drizzle-orm';
 import { createApiError } from '../middleware/errorHandler';
 import { emitToPhotos } from '../services/socketService';
 import { Photo } from '../types';
@@ -25,6 +25,11 @@ export const getPhotos = async (req: Request, res: Response, next: NextFunction)
       const approvedFilter = eq(photos.is_approved, approved === 'true');
       whereClause = whereClause ? and(whereClause, approvedFilter) : approvedFilter;
     }
+
+    // Always exclude date_mismatch photos from regular photo queries
+    // (date_mismatch photos are handled separately via /date-mismatch/list endpoint)
+    const excludeDateMismatch = ne(photos.review_status, 'date_mismatch');
+    whereClause = whereClause ? and(whereClause, excludeDateMismatch) : excludeDateMismatch;
 
     const result = await db
       .select({

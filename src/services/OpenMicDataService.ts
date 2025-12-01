@@ -337,7 +337,17 @@ export class OpenMicDataService {
   async getPhotos(albumId?: string): Promise<Photo[]> {
     const url = albumId ? `/api/photos?album_id=${albumId}` : '/api/photos';
     const response = await this.apiRequest<ApiResponse<Photo[]>>(url);
-    return response.data || [];
+    return (response.data || []).map(p => {
+      let photoUrl = p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`;
+      // Add ngrok-skip-browser-warning as query param for image loading
+      if (photoUrl.includes('ngrok')) {
+        photoUrl += (photoUrl.includes('?') ? '&' : '?') + 'ngrok-skip-browser-warning=true';
+      }
+      return {
+        ...p,
+        url: photoUrl
+      };
+    });
   }
 
   /**
@@ -426,10 +436,17 @@ export class OpenMicDataService {
    */
   async getDateMismatchPhotos(): Promise<Photo[]> {
     const response = await this.apiRequest<ApiResponse<Photo[]>>('/api/photos/date-mismatch/list');
-    return (response.data || []).map(p => ({
-      ...p,
-      url: p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`
-    }));
+    return (response.data || []).map(p => {
+      let photoUrl = p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`;
+      // Add ngrok-skip-browser-warning as query param for image loading
+      if (photoUrl.includes('ngrok')) {
+        photoUrl += (photoUrl.includes('?') ? '&' : '?') + 'ngrok-skip-browser-warning=true';
+      }
+      return {
+        ...p,
+        url: photoUrl
+      };
+    });
   }
 
   /**
@@ -449,7 +466,17 @@ export class OpenMicDataService {
    */
   async getPendingPhotos(): Promise<Photo[]> {
     const response = await this.apiRequest<ApiResponse<Photo[]>>('/api/photos?approved=false');
-    return response.data || [];
+    return (response.data || []).map(p => {
+      let photoUrl = p.url.startsWith('http') ? p.url : `${this.apiUrl}${p.url}`;
+      // Add ngrok-skip-browser-warning as query param for image loading
+      if (photoUrl.includes('ngrok')) {
+        photoUrl += (photoUrl.includes('?') ? '&' : '?') + 'ngrok-skip-browser-warning=true';
+      }
+      return {
+        ...p,
+        url: photoUrl
+      };
+    });
   }
 
   /**
