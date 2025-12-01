@@ -359,7 +359,7 @@ const PhotoManager = () => {
     }
   };
 
-  const deleteDate MismatchPhoto = async (photoId: string) => {
+  const deleteDateMismatchPhoto = async (photoId: string) => {
     if (!dataService) return;
 
     try {
