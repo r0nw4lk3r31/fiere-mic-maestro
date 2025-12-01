@@ -135,9 +135,9 @@ const CustomerView = () => {
       
       if (!eventAlbum) {
         // No matching album for today - upload as date mismatch
-        toast.success("Photo uploaded! Admins will review and assign it to the correct event. Thank you! 🎉");
+        toast.success("📅 Photo uploaded! No event today - admin will assign it to the correct date. Thank you!");
         
-        // Upload to a special "date mismatch" handling (we'll create this endpoint)
+        // Upload to a special "date mismatch" handling
         await dataService.uploadDateMismatchPhoto(selectedFile, uploaderName.trim(), photoCaption.trim() || undefined);
         
         // Reset form
@@ -152,7 +152,14 @@ const CustomerView = () => {
 
       await dataService.uploadPhoto(eventAlbum.id, selectedFile, photoCaption.trim() || undefined);
 
-      toast.success("Photo uploaded successfully! It will be reviewed by admins before being published.");
+      // Check if approval is required
+      const requiresApproval = await dataService.getSetting('require_photo_approval');
+      
+      if (requiresApproval === 'true') {
+        toast.success("Photo uploaded! It will be reviewed by admins before being published. 📋");
+      } else {
+        toast.success("Photo uploaded and published! Thank you for sharing! 🎉");
+      }
 
       // Reset form
       setSelectedFile(null);
