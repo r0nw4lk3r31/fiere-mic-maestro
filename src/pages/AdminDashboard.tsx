@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Artist, OpenMicDataService, initializeGlobalDataService } from "@/services/OpenMicDataService";
+import { ArtistManagement } from "@/components/ArtistManagement";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -94,6 +95,18 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error deleting artist:", error);
       toast.error("Failed to remove artist");
+    }
+  };
+
+  const handleMarkAsPerformed = async (id: string, artistName: string) => {
+    if (!dataService) return;
+    try {
+      await dataService.markAsPerformed(id);
+      await fetchArtists(); // Refresh the list
+      toast.success(`✅ ${artistName} marked as performed!`);
+    } catch (error) {
+      console.error("Error marking as performed:", error);
+      toast.error("Failed to mark as performed");
     }
   };
 
@@ -253,9 +266,29 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        {/* Artist Management Section */}
+        {dataService && (
+          <div className="mb-8">
+            <ArtistManagement 
+              dataService={dataService} 
+              onArtistAddedToPlaylist={fetchArtists}
+            />
+          </div>
+        )}
+
+        {/* Tonight's Playlist */}
+        <div className="mb-4">
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+            🎤 Tonight's Playlist
+          </h2>
+          <p className="text-muted-foreground">
+            Current lineup in performance order
+          </p>
+        </div>
+
         {artists.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-xl border border-border">
-            <p className="text-muted-foreground">No artists yet</p>
+            <p className="text-muted-foreground">No artists in tonight's playlist yet</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -360,24 +393,59 @@ const AdminDashboard = () => {
                       >
                         Edit
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="bg-card border-border">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="text-foreground">
-                              Remove Artist?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription className="text-muted-foreground">
-                              Are you sure you want to remove {artist.name} from
-                              tonight's lineup?
+                      
+                      {index === 0 ? (
+                        // First artist: Mark as Performed button
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              ✅ Mark as Performed
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-card border-border">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-foreground">
+                                Mark as Performed?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription className="text-muted-foreground">
+                                This will log {artist.name}'s performance to history and remove them from the playlist.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel className="border-border">
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleMarkAsPerformed(artist.id, artist.name)}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Yes, Mark as Performed
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      ) : (
+                        // Other artists: Delete button
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-card border-border">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-foreground">
+                                Remove Artist?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription className="text-muted-foreground">
+                                Are you sure you want to remove {artist.name} from
+                                tonight's lineup?
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -393,6 +461,7 @@ const AdminDashboard = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                      )}
                     </div>
                   </div>
                 )}

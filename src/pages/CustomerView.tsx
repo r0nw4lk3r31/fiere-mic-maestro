@@ -210,37 +210,57 @@ const CustomerView = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {artists.map((artist, index) => (
-              <div
-                key={artist.id}
-                className="bg-card rounded-xl p-6 border border-border shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-xl font-bold text-primary">
-                      {index + 1}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-display font-semibold text-foreground mb-2">
-                      {artist.name}
-                    </h3>
-                    {artist.song_description && (
-                      <p className="text-muted-foreground mb-2 flex items-start gap-2">
-                        <Music className="w-4 h-4 mt-1 flex-shrink-0" />
-                        <span>{artist.song_description}</span>
-                      </p>
-                    )}
-                    {artist.preferred_time && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{artist.preferred_time}</span>
-                      </p>
-                    )}
+            {artists.map((artist, index) => {
+              // Determine status label
+              let statusLabel = '';
+              let statusIcon = null;
+              let statusClass = '';
+              
+              if (index === 0) {
+                statusLabel = '🎤 Now Playing';
+                statusClass = 'bg-green-500/20 text-green-600 dark:text-green-400';
+              } else if (index === 1) {
+                statusLabel = '🎵 Next Up';
+                statusClass = 'bg-blue-500/20 text-blue-600 dark:text-blue-400';
+              }
+
+              return (
+                <div
+                  key={artist.id}
+                  className="bg-card rounded-xl p-6 border border-border shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <span className="text-xl font-bold text-primary">
+                        {index + 1}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      {statusLabel && (
+                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-2 ${statusClass}`}>
+                          {statusLabel}
+                        </span>
+                      )}
+                      <h3 className="text-xl font-display font-semibold text-foreground mb-2">
+                        {artist.name}
+                      </h3>
+                      {artist.song_description && (
+                        <p className="text-muted-foreground mb-2 flex items-start gap-2">
+                          <Music className="w-4 h-4 mt-1 flex-shrink-0" />
+                          <span>{artist.song_description}</span>
+                        </p>
+                      )}
+                      {artist.preferred_time && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>{artist.preferred_time}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

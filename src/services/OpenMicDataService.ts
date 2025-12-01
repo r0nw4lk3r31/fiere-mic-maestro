@@ -245,6 +245,31 @@ export class OpenMicDataService {
     });
   }
 
+  /**
+   * Get all regular (saved) artists
+   */
+  async getRegularArtists(): Promise<Artist[]> {
+    const response = await this.apiRequest<ApiResponse<Artist[]>>('/api/artists/regulars/list');
+    return response.data || [];
+  }
+
+  /**
+   * Mark artist as performed (logs to history and removes from playlist)
+   */
+  async markAsPerformed(id: string): Promise<void> {
+    await this.apiRequest(`/api/artists/${id}/performed`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * Get performance history
+   */
+  async getPerformanceHistory(limit: number = 50): Promise<any[]> {
+    const response = await this.apiRequest<ApiResponse<any[]>>(`/api/artists/history/list?limit=${limit}`);
+    return response.data || [];
+  }
+
   // Album Management
 
   /**

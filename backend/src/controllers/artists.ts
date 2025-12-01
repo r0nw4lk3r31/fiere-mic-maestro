@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../models';
-import { artists } from '../models/schema';
+import { artists, performanceLog } from '../models/schema';
 import { eq, asc, desc } from 'drizzle-orm';
 import { createApiError } from '../middleware/errorHandler';
 import { emitToLineup } from '../services/socketService';
@@ -48,7 +48,7 @@ export const getArtist = async (req: Request, res: Response, next: NextFunction)
 export const createArtist = async (req: Request, res: Response, next: NextFunction) => {
   try {
     console.log('createArtist invoked');
-    const { name, song_description, preferred_time }: CreateArtistRequest = req.body;
+    const { name, song_description, preferred_time, is_regular }: CreateArtistRequest & { is_regular?: boolean } = req.body;
 
     if (!name) {
       return next(createApiError('Name is required', 400));
@@ -63,7 +63,7 @@ export const createArtist = async (req: Request, res: Response, next: NextFuncti
 
     const nextOrder = lastArtist.length > 0 ? (lastArtist[0].performance_order ?? 0) + 1 : 0;
 
-    console.log('Creating artist:', { name, song_description, preferred_time, performance_order: nextOrder });
+    console.log('Creating artist:', { name, song_description, preferred_time, is_regular, performance_order: nextOrder });
 
     const result = await db
       .insert(artists)
@@ -71,7 +71,8 @@ export const createArtist = async (req: Request, res: Response, next: NextFuncti
         name,
         song_description,
         preferred_time,
-        performance_order: nextOrder
+        performance_order: nextOrder,
+        is_regular: is_regular || false
       })
       .returning();
 
@@ -103,13 +104,14 @@ export const updateArtist = async (req: Request, res: Response, next: NextFuncti
     console.log('updateArtist called:', { id, updates });
 
     // Only allow specific fields to be updated, exclude id and timestamps
-    const { name, song_description, preferred_time, performance_order } = updates;
+    const { name, song_description, preferred_time, performance_order, is_regular } = updates as any;
     const updateData: any = {};
     
     if (name !== undefined) updateData.name = name;
     if (song_description !== undefined) updateData.song_description = song_description;
     if (preferred_time !== undefined) updateData.preferred_time = preferred_time;
     if (performance_order !== undefined) updateData.performance_order = performance_order;
+    if (is_regular !== undefined) updateData.is_regular = is_regular;
     
     // Always set updated_at to current time
     updateData.updated_at = new Date();
@@ -201,5 +203,83 @@ export const reorderArtists = async (req: Request, res: Response, next: NextFunc
     });
   } catch (error) {
     next(createApiError('Failed to reorder artists', 500));
+  }
+};
+
+// Get all regular (saved) artists
+export const getRegularArtists = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await db
+      .select()
+      .from(artists)
+      .where(eq(artists.is_regular, true))
+      .orderBy(asc(artists.name));
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    next(createApiError('Failed to fetch regular artists', 500));
+  }
+};
+
+// Mark artist as performed and log to performance history
+export const markAsPerformed = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // Get artist details before deleting
+    const artistResult = await db
+      .select()
+      .from(artists)
+      .where(eq(artists.id, id))
+      .limit(1);
+
+    if (artistResult.length === 0) {
+      return next(createApiError('Artist not found', 404));
+    }
+
+    const artist = artistResult[0];
+
+    // Log the performance
+    await db.insert(performanceLog).values({
+      artist_name: artist.name,
+      song_description: artist.song_description,
+      performed_at: new Date()
+    });
+
+    // Delete artist from playlist (they've performed)
+    await db.delete(artists).where(eq(artists.id, id));
+
+    // Emit real-time update
+    emitToLineup('artist:performed', { id, name: artist.name });
+
+    res.json({
+      success: true,
+      message: 'Artist marked as performed and logged'
+    });
+  } catch (error) {
+    next(createApiError('Failed to mark artist as performed', 500));
+  }
+};
+
+// Get performance history
+export const getPerformanceHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { limit = '50' } = req.query;
+    
+    const result = await db
+      .select()
+      .from(performanceLog)
+      .orderBy(desc(performanceLog.performed_at))
+      .limit(parseInt(limit as string));
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    next(createApiError('Failed to fetch performance history', 500));
   }
 };

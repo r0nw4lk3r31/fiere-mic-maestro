@@ -7,8 +7,18 @@ export const artists = pgTable('artists', {
   song_description: text('song_description'),
   preferred_time: text('preferred_time'),
   performance_order: integer('performance_order').default(0),
+  is_regular: boolean('is_regular').default(false), // Saved artist vs one-time signup
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
+});
+
+// Performance log table - tracks who played when
+export const performanceLog = pgTable('performance_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  artist_name: text('artist_name').notNull(),
+  song_description: text('song_description'),
+  performed_at: timestamp('performed_at').defaultNow().notNull(),
+  created_at: timestamp('created_at').defaultNow(),
 });
 
 // Albums table
