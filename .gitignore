@@ -25,3 +25,9 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Personal workspace files
+temp.md
+
+# Upload directory (user photos)
+backend/uploads/
